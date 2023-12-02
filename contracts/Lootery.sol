@@ -38,6 +38,8 @@ contract Lootery is IRandomiserCallback, ERC721Enumerable {
     /// @notice Percentage of ticket price directed to the community
     uint256 public immutable communityFeeBps;
 
+    /// @dev Current token id
+    uint256 private currentTokenId;
     /// @notice State of the game
     GameState public gameState;
     /// @notice Monotonically increasing game id
@@ -73,14 +75,27 @@ contract Lootery is IRandomiserCallback, ERC721Enumerable {
         string memory symbol_,
         uint256 numPicks_,
         uint256 maxBallValue_,
-        uint256 ticketPrice_
+        uint256 gamePeriod_,
+        uint256 ticketPrice_,
+        uint256 communityFeeBps_,
+        address randomiser_
     ) payable ERC721(name_, symbol_) {
-        require(numPicks > 0, "Number of picks must be nonzero");
+        require(numPicks_ > 0, "Number of picks must be nonzero");
         numPicks = numPicks_;
         // We exclude 0 as a pickable number
-        require(maxBallValue < 255, "Domain too large");
+        require(maxBallValue_ < 255, "Domain too large");
         maxBallValue = maxBallValue_;
+
+        require(gamePeriod_ > 10 minutes, "Unrealistic game period");
+        gamePeriod = gamePeriod_;
+
+        require(ticketPrice_ > 0, "Ticket price must be nonzero");
         ticketPrice = ticketPrice_;
+        communityFeeBps = communityFeeBps_;
+
+        require(randomiser_ != address(0), "Randomiser must be defined");
+        randomiser = randomiser_;
+
         // Seed the jackpot
         jackpots[0] += msg.value;
     }
@@ -97,11 +112,11 @@ contract Lootery is IRandomiserCallback, ERC721Enumerable {
     function computePickIdentity(
         uint8[] memory picks
     ) internal pure returns (uint256 id) {
-        assembly {
-            let len := mload(picks)
-            let p := add(0x20, picks)
-            id := keccak256(p, len)
+        bytes memory packed = new bytes(picks.length);
+        for (uint256 i; i < picks.length; ++i) {
+            packed[i] = bytes1(picks[i]);
         }
+        return uint256(keccak256(packed));
     }
 
     /// @notice Purchase a ticket
@@ -129,7 +144,7 @@ contract Lootery is IRandomiserCallback, ERC721Enumerable {
             lastPick = pick;
         }
         // Record picked numbers
-        uint256 tokenId = totalSupply() + 1;
+        uint256 tokenId = ++currentTokenId;
         tokenIdToTicket[tokenId] = picks;
         ticketsSold[gameId] += 1;
         _safeMint(whomst, tokenId);

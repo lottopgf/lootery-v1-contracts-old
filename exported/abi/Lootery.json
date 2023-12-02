@@ -23,8 +23,23 @@
       },
       {
         "internalType": "uint256",
+        "name": "gamePeriod_",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
         "name": "ticketPrice_",
         "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "communityFeeBps_",
+        "type": "uint256"
+      },
+      {
+        "internalType": "address",
+        "name": "randomiser_",
+        "type": "address"
       }
     ],
     "stateMutability": "payable",
