@@ -2,16 +2,26 @@
 pragma solidity 0.8.23;
 
 import {FeistelShuffleOptimised} from "./lib/FeistelShuffleOptimised.sol";
+import {Sort} from "./lib/Sort.sol";
 import {ERC721, ERC721Enumerable} from "@openzeppelin/contracts/token/ERC721/extensions/ERC721Enumerable.sol";
+import {IRandomiserCallback} from "./interfaces/IRandomiserCallback.sol";
+import {IRandomiserGen2} from "./interfaces/IRandomiserGen2.sol";
 
-/// @title Loots
+/// @title Lootery
 /// @notice Lotto the ultimate
-contract Loots is ERC721Enumerable {
+contract Lootery is IRandomiserCallback, ERC721Enumerable {
+    using Sort for uint8[];
+
     enum GameState {
         /// @notice This is the only state where the jackpot can increase
         Purchase,
         /// @notice Waiting for VRF fulfilment
         DrawPending
+    }
+
+    struct RandomnessRequest {
+        uint208 requestId;
+        uint48 timestamp;
     }
 
     /// @notice How many numbers must be picked per draw (and per ticket)
@@ -30,6 +40,8 @@ contract Loots is ERC721Enumerable {
     GameState public gameState;
     /// @notice Monotonically increasing game id
     uint256 public currentGameId;
+    /// @notice Current random request details
+    RandomnessRequest public randomnessRequest;
     /// @notice Winning pick identities per game, once they've been drawn
     mapping(uint256 gameId => uint256) public winningPickIds;
     /// @notice token id => picks
@@ -123,30 +135,40 @@ contract Loots is ERC721Enumerable {
     /// @notice Draw numbers, picking potential jackpot winners and ending the
     ///     current game. This should be automated by a keeper.
     function draw() external {
-        // TODO: Request rando from VRF
+        require(gameState == GameState.Purchase, "Game already drawn");
         gameState = GameState.DrawPending;
+
+        RandomnessRequest memory randReq = randomnessRequest;
+        require(
+            randReq.requestId == 0 ||
+                block.timestamp > (randReq.timestamp + 1 hours),
+            "Request already inflight"
+        );
+        uint256 requestId = IRandomiserGen2(randomiser).getRandomNumber(
+            address(this),
+            500_000,
+            6
+        );
+        require(requestId <= type(uint208).max, "Request id out of range");
+        randomnessRequest = RandomnessRequest({
+            requestId: uint208(requestId),
+            timestamp: uint48(block.timestamp)
+        });
     }
 
-    /// @notice Sort a small array (insertion sort -> O(n^2))
-    /// @param unsorted Potentially unsorted array to be sorted inplace
-    function sort(
-        uint8[] memory unsorted
-    ) internal pure returns (uint8[] memory) {
-        uint256 len = unsorted.length;
-        for (uint256 i = 1; i < len; ++i) {
-            uint8 curr = unsorted[i];
-            uint256 j = i - 1;
-            for (; curr < unsorted[j] && j >= 0; --j) {
-                unsorted[j + 1] = unsorted[j];
-            }
-            unsorted[j + 1] = curr;
-        }
-        return unsorted;
-    }
-
-    function fulfillRandomness(uint256 randomness) external {
+    function receiveRandomWords(
+        uint256 requestId,
+        uint256[] calldata randomWords
+    ) external {
         require(msg.sender == randomiser, "Only callable by randomiser");
         require(gameState == GameState.DrawPending, "Wrong state");
+        require(
+            randomnessRequest.requestId == requestId,
+            "Request id mismatch"
+        );
+        randomnessRequest = RandomnessRequest({requestId: 0, timestamp: 0});
+
+        require(randomWords.length > 0, "Where da randomness");
 
         // Pick numbers
         uint8[] memory balls = new uint8[](numPicks);
@@ -156,12 +178,12 @@ contract Loots is ERC721Enumerable {
                     FeistelShuffleOptimised.shuffle(
                         i,
                         maxBallValue,
-                        randomness,
+                        randomWords[0],
                         4
                     )
             );
         }
-        balls = sort(balls);
+        balls = balls.sort();
         uint256 gameId = currentGameId++;
         emit GameFinalised(gameId, balls);
 

@@ -355,19 +355,6 @@
     "type": "function"
   },
   {
-    "inputs": [
-      {
-        "internalType": "uint256",
-        "name": "randomness",
-        "type": "uint256"
-      }
-    ],
-    "name": "fulfillRandomness",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
     "inputs": [],
     "name": "gamePeriod",
     "outputs": [
@@ -385,7 +372,7 @@
     "name": "gameState",
     "outputs": [
       {
-        "internalType": "enum Loots.GameState",
+        "internalType": "enum Lootery.GameState",
         "name": "",
         "type": "uint8"
       }
@@ -542,6 +529,42 @@
       }
     ],
     "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "randomnessRequest",
+    "outputs": [
+      {
+        "internalType": "uint208",
+        "name": "requestId",
+        "type": "uint208"
+      },
+      {
+        "internalType": "uint48",
+        "name": "timestamp",
+        "type": "uint48"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "requestId",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256[]",
+        "name": "randomWords",
+        "type": "uint256[]"
+      }
+    ],
+    "name": "receiveRandomWords",
+    "outputs": [],
+    "stateMutability": "nonpayable",
     "type": "function"
   },
   {

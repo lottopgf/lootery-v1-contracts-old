@@ -91,7 +91,7 @@ const config: HardhatUserConfig = {
         runOnCompile: true,
         clear: true,
         flat: true,
-        only: ['TroopLoots'],
+        only: ['Lootery'],
         except: ['test/*'],
     },
 }
