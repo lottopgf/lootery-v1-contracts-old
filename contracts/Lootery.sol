@@ -35,6 +35,8 @@ contract Lootery is IRandomiserCallback, ERC721Enumerable {
     address public immutable randomiser;
     /// @notice Ticket price
     uint256 public immutable ticketPrice;
+    /// @notice Percentage of ticket price directed to the community
+    uint256 public immutable communityFeeBps;
 
     /// @notice State of the game
     GameState public gameState;
@@ -55,6 +57,8 @@ contract Lootery is IRandomiserCallback, ERC721Enumerable {
     mapping(uint256 gameId => uint256) public ticketsSold;
     /// @notice Current jackpot (in wei)
     mapping(uint256 gameId => uint256) public jackpots;
+    /// @notice Accrued community fee share (wei)
+    uint256 public accruedCommunityFees;
 
     event TicketPurchased(
         uint256 indexed gameId,
@@ -108,9 +112,12 @@ contract Lootery is IRandomiserCallback, ERC721Enumerable {
     ///     ORDERED, with NO DUPLICATES!
     function purchase(address whomst, uint8[] calldata picks) external payable {
         require(msg.value == ticketPrice, "Incorrect payment");
-        // TODO: Fee splits
         uint256 gameId = currentGameId;
-        jackpots[gameId] += ticketPrice;
+
+        // Handle fee splits
+        uint256 communityFeeShare = (msg.value * communityFeeBps) / 10000;
+        accruedCommunityFees += communityFeeShare;
+        jackpots[gameId] += msg.value - communityFeeShare;
 
         require(picks.length == numPicks, "Invalid number of picks");
         // Assert picks are ascendingly sorted, with no possibility of duplicates
