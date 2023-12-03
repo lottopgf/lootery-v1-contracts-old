@@ -53,6 +53,7 @@ const config: HardhatUserConfig = {
         apiKey: {
             mainnet: process.env.ETHERSCAN_API_KEY as string,
             scroll: process.env.SCROLLSCAN_API_KEY as string,
+            scrollSepolia: process.env.SCROLLSCAN_API_KEY as string,
         },
         customChains: [
             {

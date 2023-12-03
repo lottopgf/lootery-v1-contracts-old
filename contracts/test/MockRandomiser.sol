@@ -43,17 +43,4 @@ contract MockRandomiser is IRandomiserGen2, Ownable {
             randomWords
         );
     }
-
-    modifier onlyAuthorised() {
-        require(authorisedContracts[msg.sender], "Not authorised");
-        _;
-    }
-
-    function authorise(address account) public onlyAuthorised {
-        authorisedContracts[account] = true;
-    }
-
-    function deauthorise(address account) external onlyAuthorised {
-        authorisedContracts[account] = false;
-    }
 }
