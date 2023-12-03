@@ -73,6 +73,8 @@ contract Lootery is IRandomiserCallback, ERC721Enumerable, Ownable {
     mapping(uint256 gameId => uint256) public jackpots;
     /// @notice Accrued community fee share (wei)
     uint256 public accruedCommunityFees;
+    /// @notice Block timestamp of when the game started
+    mapping(uint256 gameId => uint256) public gameStartedAt;
 
     event TicketPurchased(
         uint256 indexed gameId,
@@ -99,6 +101,7 @@ contract Lootery is IRandomiserCallback, ERC721Enumerable, Ownable {
     error RequestIdMismatch(uint256 actual, uint208 expected);
     error InsufficientRandomWords();
     error NoWin(uint256 pickId, uint256 winningPickId);
+    error WaitLonger(uint256 deadline);
 
     constructor(
         string memory name_,
@@ -134,6 +137,8 @@ contract Lootery is IRandomiserCallback, ERC721Enumerable, Ownable {
 
         // Seed the jackpot
         jackpots[0] += msg.value;
+        // The first game starts straight away
+        gameStartedAt[0] = block.timestamp;
     }
 
     /// @notice Seed the jackpot
@@ -208,6 +213,11 @@ contract Lootery is IRandomiserCallback, ERC721Enumerable, Ownable {
             revert UnexpectedState(gameState, GameState.Purchase);
         }
         gameState = GameState.DrawPending;
+
+        uint256 gameDeadline = (gameStartedAt[currentGameId] + gamePeriod);
+        if (block.timestamp < gameDeadline) {
+            revert WaitLonger(gameDeadline);
+        }
 
         RandomnessRequest memory randReq = randomnessRequest;
         if (
