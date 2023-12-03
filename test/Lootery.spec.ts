@@ -1,14 +1,16 @@
 import { ethers } from 'hardhat'
 import { time } from '@nomicfoundation/hardhat-network-helpers'
 import {
+    LooteryFactory,
+    LooteryFactory__factory,
     Lootery__factory,
     MockRandomiser,
     MockRandomiser__factory,
-    ERC1967Proxy__factory,
 } from '../typechain-types'
 import { SignerWithAddress } from '@nomicfoundation/hardhat-ethers/signers'
-import { BytesLike, ContractFactory, ContractRunner, Signer, parseEther } from 'ethers'
+import { parseEther } from 'ethers'
 import { expect } from 'chai'
+import { deployProxy } from './helpers/deployProxy'
 
 function keccak(balls: bigint[]) {
     return ethers.solidityPackedKeccak256(
@@ -17,53 +19,51 @@ function keccak(balls: bigint[]) {
     )
 }
 
-async function deployProxy<
-    TContractFactory extends ContractFactory,
-    TContract = ReturnType<TContractFactory['deploy']>,
->({
-    deployer,
-    implementation,
-    initData,
-}: {
-    deployer: Signer
-    implementation: { new (runner?: Signer): TContractFactory }
-    initData: BytesLike
-}): Promise<TContract> {
-    const impl = await new implementation(deployer).deploy()
-    const proxy = await new ERC1967Proxy__factory(deployer).deploy(
-        await impl.getAddress(),
-        initData,
-    )
-    return new implementation(deployer).attach(await proxy.getAddress()) as TContract
-}
-
 describe('Lootery', () => {
     let mockRandomiser: MockRandomiser
+    let factory: LooteryFactory
     let deployer: SignerWithAddress
     let bob: SignerWithAddress
     beforeEach(async () => {
         ;[deployer, bob] = await ethers.getSigners()
 
         mockRandomiser = await new MockRandomiser__factory(deployer).deploy()
-    })
 
-    it('runs happy path', async () => {
-        const gamePeriod = BigInt(1 * 60 * 60) // 1h
-        const lotto = await deployProxy({
+        const looteryImpl = await new Lootery__factory(deployer).deploy()
+        factory = await deployProxy({
             deployer,
-            implementation: Lootery__factory,
-            initData: await Lootery__factory.createInterface().encodeFunctionData('init', [
-                deployer.address,
-                'Lotto',
-                'LOTTO',
-                5,
-                69,
-                gamePeriod,
-                parseEther('0.1'),
-                5000, // 50%
+            implementation: LooteryFactory__factory,
+            initData: LooteryFactory__factory.createInterface().encodeFunctionData('init', [
+                await looteryImpl.getAddress(),
                 await mockRandomiser.getAddress(),
             ]),
         })
+    })
+
+    /**
+     * Helper to create lotteries using the factory
+     * @param args Lootery init args
+     * @returns Lootery instance
+     */
+    async function createLotto(...args: Parameters<LooteryFactory['create']>) {
+        const lottoAddress = await factory.computeNextAddress()
+        await factory.create(...args)
+        return Lootery__factory.connect(lottoAddress, deployer)
+    }
+
+    it('runs happy path', async () => {
+        // Launch a lottery
+        const gamePeriod = BigInt(1 * 60 * 60) // 1h
+        const lotto = await createLotto(
+            'Lotto',
+            'LOTTO',
+            5,
+            69,
+            gamePeriod,
+            parseEther('0.1'),
+            5000, // 50%
+        )
+
         // Allow seeding jackpot
         await lotto.seedJackpot({
             value: parseEther('10'),
