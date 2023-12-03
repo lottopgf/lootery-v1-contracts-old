@@ -45,9 +45,17 @@ describe('Lootery', () => {
 
         // Bob purchases a winning ticket
         const winningTicket = [3n, 11n, 22n, 29n, 42n]
-        await lotto.connect(bob).purchase(bob.address, winningTicket, {
-            value: parseEther('0.1'),
-        })
+        await lotto.connect(bob).purchase(
+            [
+                {
+                    whomst: bob.address,
+                    picks: winningTicket,
+                },
+            ],
+            {
+                value: parseEther('0.1'),
+            },
+        )
         // Bob receives NFT ticket
         expect(await lotto.balanceOf(bob.address)).to.eq(1)
         const ticketTokenId = await lotto.tokenOfOwnerByIndex(bob.address, 0)

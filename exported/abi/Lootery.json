@@ -816,14 +816,21 @@
   {
     "inputs": [
       {
-        "internalType": "address",
-        "name": "whomst",
-        "type": "address"
-      },
-      {
-        "internalType": "uint8[]",
-        "name": "picks",
-        "type": "uint8[]"
+        "components": [
+          {
+            "internalType": "address",
+            "name": "whomst",
+            "type": "address"
+          },
+          {
+            "internalType": "uint8[]",
+            "name": "picks",
+            "type": "uint8[]"
+          }
+        ],
+        "internalType": "struct Lootery.Ticket[]",
+        "name": "tickets",
+        "type": "tuple[]"
       }
     ],
     "name": "purchase",

@@ -13,6 +13,7 @@ import {IRandomiserGen2} from "./interfaces/IRandomiserGen2.sol";
 contract Lootery is IRandomiserCallback, ERC721Enumerable, Ownable {
     using Sort for uint8[];
 
+    /// @notice Current state of the lootery
     enum GameState {
         /// @notice This is the only state where the jackpot can increase
         Purchase,
@@ -20,6 +21,16 @@ contract Lootery is IRandomiserCallback, ERC721Enumerable, Ownable {
         DrawPending
     }
 
+    /// @notice A ticket to be purchased
+    struct Ticket {
+        /// @notice For whomst shall this purchase be made out
+        address whomst;
+        /// @notice Lotto numbers, pick wisely! Picks must be ASCENDINGLY
+        ///     ORDERED, with NO DUPLICATES!
+        uint8[] picks;
+    }
+
+    /// @notice Describes an inflight randomness request
     struct RandomnessRequest {
         uint208 requestId;
         uint48 timestamp;
@@ -147,44 +158,47 @@ contract Lootery is IRandomiserCallback, ERC721Enumerable, Ownable {
     }
 
     /// @notice Purchase a ticket
-    /// TODO: Relayable (EIP-712 sig)
-    /// TODO: Purchase multiple tickets at once
-    /// @param whomst For whomst shall this purchase be made out to?
-    /// @param picks Lotto numbers, pick wisely! Picks must be ASCENDINGLY
-    ///     ORDERED, with NO DUPLICATES!
-    function purchase(address whomst, uint8[] calldata picks) external payable {
-        if (msg.value != ticketPrice) {
-            revert IncorrectPaymentAmount(msg.value, ticketPrice);
+    /// @param tickets Tickets! Tickets!
+    function purchase(Ticket[] calldata tickets) external payable {
+        uint256 totalPrice = ticketPrice * tickets.length;
+        if (msg.value != totalPrice) {
+            revert IncorrectPaymentAmount(msg.value, totalPrice);
         }
 
         uint256 gameId = currentGameId;
 
-        // Handle fee splits
-        uint256 communityFeeShare = (msg.value * communityFeeBps) / 10000;
-        accruedCommunityFees += communityFeeShare;
-        jackpots[gameId] += msg.value - communityFeeShare;
+        address whomst;
+        uint8[] memory picks;
+        for (uint256 t; t < tickets.length; ++t) {
+            whomst = tickets[t].whomst;
+            picks = tickets[t].picks;
+            // Handle fee splits
+            uint256 communityFeeShare = (msg.value * communityFeeBps) / 10000;
+            accruedCommunityFees += communityFeeShare;
+            jackpots[gameId] += msg.value - communityFeeShare;
 
-        if (picks.length != numPicks) {
-            revert InvalidNumPicks(picks.length);
-        }
+            if (picks.length != numPicks) {
+                revert InvalidNumPicks(picks.length);
+            }
 
-        // Assert picks are ascendingly sorted, with no possibility of duplicates
-        uint8 lastPick;
-        for (uint256 i = 0; i < numPicks; ++i) {
-            uint8 pick = picks[i];
-            if (pick <= lastPick) revert UnsortedPicks(picks);
-            if (pick > maxBallValue) revert InvalidBallValue(pick);
-            lastPick = pick;
+            // Assert picks are ascendingly sorted, with no possibility of duplicates
+            uint8 lastPick;
+            for (uint256 i = 0; i < numPicks; ++i) {
+                uint8 pick = picks[i];
+                if (pick <= lastPick) revert UnsortedPicks(picks);
+                if (pick > maxBallValue) revert InvalidBallValue(pick);
+                lastPick = pick;
+            }
+            // Record picked numbers
+            uint256 tokenId = ++currentTokenId;
+            tokenIdToTicket[tokenId] = picks;
+            ticketsSold[gameId] += 1;
+            _safeMint(whomst, tokenId);
+            // Account for this pick set
+            uint256 id = computePickIdentity(picks);
+            tokenByPickIdentity[gameId][id].push(tokenId);
+            emit TicketPurchased(gameId, whomst, tokenId, picks);
         }
-        // Record picked numbers
-        uint256 tokenId = ++currentTokenId;
-        tokenIdToTicket[tokenId] = picks;
-        ticketsSold[gameId] += 1;
-        _safeMint(whomst, tokenId);
-        // Account for this pick set
-        uint256 id = computePickIdentity(picks);
-        tokenByPickIdentity[gameId][id].push(tokenId);
-        emit TicketPurchased(gameId, whomst, tokenId, picks);
     }
 
     /// @notice Draw numbers, picking potential jackpot winners and ending the
