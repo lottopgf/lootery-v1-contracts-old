@@ -17,9 +17,9 @@
         "type": "uint256"
       },
       {
-        "internalType": "uint256",
+        "internalType": "uint8",
         "name": "maxBallValue_",
-        "type": "uint256"
+        "type": "uint8"
       },
       {
         "internalType": "uint256",
@@ -44,6 +44,17 @@
     ],
     "stateMutability": "payable",
     "type": "constructor"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "caller",
+        "type": "address"
+      }
+    ],
+    "name": "CallerNotRandomiser",
+    "type": "error"
   },
   {
     "inputs": [],
@@ -171,7 +182,104 @@
   },
   {
     "inputs": [],
+    "name": "GameAlreadyDrawn",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "paid",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "expected",
+        "type": "uint256"
+      }
+    ],
+    "name": "IncorrectPaymentAmount",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InsufficientRandomWords",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "ballValue",
+        "type": "uint256"
+      }
+    ],
+    "name": "InvalidBallValue",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "gamePeriod",
+        "type": "uint256"
+      }
+    ],
+    "name": "InvalidGamePeriod",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "InvalidInputs",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "numPicks",
+        "type": "uint256"
+      }
+    ],
+    "name": "InvalidNumPicks",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "randomiser",
+        "type": "address"
+      }
+    ],
+    "name": "InvalidRandomiser",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "ticketPrice",
+        "type": "uint256"
+      }
+    ],
+    "name": "InvalidTicketPrice",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "pickId",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "winningPickId",
+        "type": "uint256"
+      }
+    ],
+    "name": "NoWin",
     "type": "error"
   },
   {
@@ -199,6 +307,49 @@
   {
     "inputs": [
       {
+        "internalType": "uint256",
+        "name": "requestId",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "timestamp",
+        "type": "uint256"
+      }
+    ],
+    "name": "RequestAlreadyInFlight",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "actual",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint208",
+        "name": "expected",
+        "type": "uint208"
+      }
+    ],
+    "name": "RequestIdMismatch",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "requestId",
+        "type": "uint256"
+      }
+    ],
+    "name": "RequestIdOverflow",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
         "internalType": "address",
         "name": "to",
         "type": "address"
@@ -215,6 +366,33 @@
       }
     ],
     "name": "TransferFailure",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "enum Lootery.GameState",
+        "name": "actual",
+        "type": "uint8"
+      },
+      {
+        "internalType": "enum Lootery.GameState",
+        "name": "expected",
+        "type": "uint8"
+      }
+    ],
+    "name": "UnexpectedState",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint8[]",
+        "name": "picks",
+        "type": "uint8[]"
+      }
+    ],
+    "name": "UnsortedPicks",
     "type": "error"
   },
   {
@@ -569,9 +747,9 @@
     "name": "maxBallValue",
     "outputs": [
       {
-        "internalType": "uint256",
+        "internalType": "uint8",
         "name": "",
-        "type": "uint256"
+        "type": "uint8"
       }
     ],
     "stateMutability": "view",

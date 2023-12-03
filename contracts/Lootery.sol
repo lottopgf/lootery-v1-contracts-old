@@ -29,7 +29,7 @@ contract Lootery is IRandomiserCallback, ERC721Enumerable, Ownable {
     ///     The range of this number should be something like 3-7
     uint256 public immutable numPicks;
     /// @notice Maximum value of a ball (pick) s.t. value \in [1, maxBallValue]
-    uint256 public immutable maxBallValue;
+    uint8 public immutable maxBallValue;
     /// @notice How long a game lasts in seconds (before numbers are drawn)
     uint256 public immutable gamePeriod;
     /// @notice Trusted randomiser
@@ -73,31 +73,52 @@ contract Lootery is IRandomiserCallback, ERC721Enumerable, Ownable {
     event Transferred(address to, uint256 value);
 
     error TransferFailure(address to, uint256 value, bytes reason);
+    error InvalidNumPicks(uint256 numPicks);
+    error InvalidGamePeriod(uint256 gamePeriod);
+    error InvalidTicketPrice(uint256 ticketPrice);
+    error InvalidRandomiser(address randomiser);
+    error IncorrectPaymentAmount(uint256 paid, uint256 expected);
+    error UnsortedPicks(uint8[] picks);
+    error InvalidBallValue(uint256 ballValue);
+    error GameAlreadyDrawn();
+    error UnexpectedState(GameState actual, GameState expected);
+    error RequestAlreadyInFlight(uint256 requestId, uint256 timestamp);
+    error RequestIdOverflow(uint256 requestId);
+    error CallerNotRandomiser(address caller);
+    error RequestIdMismatch(uint256 actual, uint208 expected);
+    error InsufficientRandomWords();
+    error NoWin(uint256 pickId, uint256 winningPickId);
 
     constructor(
         string memory name_,
         string memory symbol_,
         uint256 numPicks_,
-        uint256 maxBallValue_,
+        uint8 maxBallValue_,
         uint256 gamePeriod_,
         uint256 ticketPrice_,
         uint256 communityFeeBps_,
         address randomiser_
     ) payable ERC721(name_, symbol_) Ownable(msg.sender) {
-        require(numPicks_ > 0, "Number of picks must be nonzero");
+        if (numPicks_ == 0) {
+            revert InvalidNumPicks(numPicks_);
+        }
         numPicks = numPicks_;
-        // We exclude 0 as a pickable number
-        require(maxBallValue_ < 255, "Domain too large");
         maxBallValue = maxBallValue_;
 
-        require(gamePeriod_ > 10 minutes, "Unrealistic game period");
+        if (gamePeriod_ < 10 minutes) {
+            revert InvalidGamePeriod(gamePeriod_);
+        }
         gamePeriod = gamePeriod_;
 
-        require(ticketPrice_ > 0, "Ticket price must be nonzero");
+        if (ticketPrice_ == 0) {
+            revert InvalidTicketPrice(ticketPrice_);
+        }
         ticketPrice = ticketPrice_;
         communityFeeBps = communityFeeBps_;
 
-        require(randomiser_ != address(0), "Randomiser must be defined");
+        if (randomiser_ == address(0)) {
+            revert InvalidRandomiser(randomiser_);
+        }
         randomiser = randomiser_;
 
         // Seed the jackpot
@@ -108,7 +129,9 @@ contract Lootery is IRandomiserCallback, ERC721Enumerable, Ownable {
     function seedJackpot() external payable {
         // We allow seeding jackpot during purchase phase only, so we don't
         // have to fuck around with accounting
-        require(gameState == GameState.Purchase, "Already drawn");
+        if (gameState != GameState.Purchase) {
+            revert UnexpectedState(gameState, GameState.Purchase);
+        }
         jackpots[currentGameId] += msg.value;
     }
 
@@ -130,7 +153,10 @@ contract Lootery is IRandomiserCallback, ERC721Enumerable, Ownable {
     /// @param picks Lotto numbers, pick wisely! Picks must be ASCENDINGLY
     ///     ORDERED, with NO DUPLICATES!
     function purchase(address whomst, uint8[] calldata picks) external payable {
-        require(msg.value == ticketPrice, "Incorrect payment");
+        if (msg.value != ticketPrice) {
+            revert IncorrectPaymentAmount(msg.value, ticketPrice);
+        }
+
         uint256 gameId = currentGameId;
 
         // Handle fee splits
@@ -138,13 +164,16 @@ contract Lootery is IRandomiserCallback, ERC721Enumerable, Ownable {
         accruedCommunityFees += communityFeeShare;
         jackpots[gameId] += msg.value - communityFeeShare;
 
-        require(picks.length == numPicks, "Invalid number of picks");
+        if (picks.length != numPicks) {
+            revert InvalidNumPicks(picks.length);
+        }
+
         // Assert picks are ascendingly sorted, with no possibility of duplicates
         uint8 lastPick;
         for (uint256 i = 0; i < numPicks; ++i) {
             uint8 pick = picks[i];
-            require(pick > lastPick, "Picks not ordered");
-            require(pick <= maxBallValue, "Ball outside domain");
+            if (pick <= lastPick) revert UnsortedPicks(picks);
+            if (pick > maxBallValue) revert InvalidBallValue(pick);
             lastPick = pick;
         }
         // Record picked numbers
@@ -161,21 +190,26 @@ contract Lootery is IRandomiserCallback, ERC721Enumerable, Ownable {
     /// @notice Draw numbers, picking potential jackpot winners and ending the
     ///     current game. This should be automated by a keeper.
     function draw() external {
-        require(gameState == GameState.Purchase, "Game already drawn");
+        if (gameState != GameState.Purchase) {
+            revert UnexpectedState(gameState, GameState.Purchase);
+        }
         gameState = GameState.DrawPending;
 
         RandomnessRequest memory randReq = randomnessRequest;
-        require(
-            randReq.requestId == 0 ||
-                block.timestamp > (randReq.timestamp + 1 hours),
-            "Request already inflight"
-        );
+        if (
+            randReq.requestId != 0 &&
+            (block.timestamp <= (randReq.timestamp + 1 hours))
+        ) {
+            revert RequestAlreadyInFlight(randReq.requestId, randReq.timestamp);
+        }
         uint256 requestId = IRandomiserGen2(randomiser).getRandomNumber(
             address(this),
             500_000,
             6
         );
-        require(requestId <= type(uint208).max, "Request id out of range");
+        if (requestId > type(uint208).max) {
+            revert RequestIdOverflow(requestId);
+        }
         randomnessRequest = RandomnessRequest({
             requestId: uint208(requestId),
             timestamp: uint48(block.timestamp)
@@ -186,15 +220,20 @@ contract Lootery is IRandomiserCallback, ERC721Enumerable, Ownable {
         uint256 requestId,
         uint256[] calldata randomWords
     ) external {
-        require(msg.sender == randomiser, "Only callable by randomiser");
-        require(gameState == GameState.DrawPending, "Wrong state");
-        require(
-            randomnessRequest.requestId == requestId,
-            "Request id mismatch"
-        );
+        if (msg.sender != randomiser) {
+            revert CallerNotRandomiser(msg.sender);
+        }
+        if (gameState != GameState.DrawPending) {
+            revert UnexpectedState(gameState, GameState.DrawPending);
+        }
+        if (randomnessRequest.requestId != requestId) {
+            revert RequestIdMismatch(requestId, randomnessRequest.requestId);
+        }
         randomnessRequest = RandomnessRequest({requestId: 0, timestamp: 0});
 
-        require(randomWords.length > 0, "Where da randomness");
+        if (randomWords.length == 0) {
+            revert InsufficientRandomWords();
+        }
 
         // Pick numbers
         uint8[] memory balls = new uint8[](numPicks);
@@ -223,14 +262,18 @@ contract Lootery is IRandomiserCallback, ERC721Enumerable, Ownable {
     /// @notice Claim a share of the jackpot with a winning ticket
     function claimWinnings(uint256 tokenId) external {
         address whomst = _ownerOf(tokenId);
-        require(whomst != address(0), "Ticket doesn't exist");
+        if (whomst == address(0)) {
+            revert ERC721NonexistentToken(tokenId);
+        }
         _burn(tokenId);
 
         // Check winning balls from game
         uint256 gameId = tokenIdToGameId[tokenId];
         uint256 winningPickId = winningPickIds[gameId];
         uint256 ticketPickId = computePickIdentity(tokenIdToTicket[tokenId]);
-        require(winningPickId == ticketPickId, "Not a winning ticket");
+        if (winningPickId != ticketPickId) {
+            revert NoWin(ticketPickId, winningPickId);
+        }
 
         // Determine if the jackpot was won
         uint256 jackpot = jackpots[gameId];
