@@ -78,5 +78,11 @@ describe('Lootery', () => {
         const balanceBefore = await ethers.provider.getBalance(bob.address)
         await lotto.claimWinnings(ticketTokenId)
         expect(await ethers.provider.getBalance(bob.address)).to.eq(balanceBefore + jackpot)
+
+        // Withdraw accrued fees
+        const accruedFees = await lotto.accruedCommunityFees()
+        expect(accruedFees).to.eq(parseEther('0.05'))
+        await expect(lotto.withdrawAccruedFees()).to.emit(lotto, 'Transferred')
+        expect(await lotto.accruedCommunityFees()).to.eq(0)
     })
 })

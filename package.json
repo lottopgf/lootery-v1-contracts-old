@@ -4,7 +4,8 @@
   "description": "Troop Lottery Contracts",
   "scripts": {
     "deploy:scrolltestnet": "yarn hardhat --network scrollSepolia run scripts/deploy.ts",
-    "test": "yarn hardhat --network hardhat test"
+    "test": "yarn hardhat --network hardhat test",
+    "coverage": "yarn hardhat --network hardhat coverage"
   },
   "keywords": [],
   "author": "Kevin Charm <kevin.charm@troop.finance>",

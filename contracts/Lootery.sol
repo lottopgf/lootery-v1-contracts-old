@@ -4,12 +4,13 @@ pragma solidity 0.8.23;
 import {FeistelShuffleOptimised} from "./lib/FeistelShuffleOptimised.sol";
 import {Sort} from "./lib/Sort.sol";
 import {ERC721, ERC721Enumerable} from "@openzeppelin/contracts/token/ERC721/extensions/ERC721Enumerable.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {IRandomiserCallback} from "./interfaces/IRandomiserCallback.sol";
 import {IRandomiserGen2} from "./interfaces/IRandomiserGen2.sol";
 
 /// @title Lootery
 /// @notice Lotto the ultimate
-contract Lootery is IRandomiserCallback, ERC721Enumerable {
+contract Lootery is IRandomiserCallback, ERC721Enumerable, Ownable {
     using Sort for uint8[];
 
     enum GameState {
@@ -69,6 +70,9 @@ contract Lootery is IRandomiserCallback, ERC721Enumerable {
         uint8[] picks
     );
     event GameFinalised(uint256 gameId, uint8[] winningPicks);
+    event Transferred(address to, uint256 value);
+
+    error TransferFailure(address to, uint256 value, bytes reason);
 
     constructor(
         string memory name_,
@@ -79,7 +83,7 @@ contract Lootery is IRandomiserCallback, ERC721Enumerable {
         uint256 ticketPrice_,
         uint256 communityFeeBps_,
         address randomiser_
-    ) payable ERC721(name_, symbol_) {
+    ) payable ERC721(name_, symbol_) Ownable(msg.sender) {
         require(numPicks_ > 0, "Number of picks must be nonzero");
         numPicks = numPicks_;
         // We exclude 0 as a pickable number
@@ -231,18 +235,33 @@ contract Lootery is IRandomiserCallback, ERC721Enumerable {
         // Determine if the jackpot was won
         uint256 jackpot = jackpots[gameId];
         uint256 numWinners = tokenByPickIdentity[gameId][winningPickId].length;
-        uint256 share;
+        uint256 prizeShare;
         if (numWinners > 0) {
             // Transfer share of jackpot to ticket holder
-            share = jackpot / numWinners;
+            prizeShare = jackpot / numWinners;
         } else {
             // No jackpot winners :(
             // Jackpot is shared between all tickets
-            share = jackpot / ticketsSold[gameId];
+            prizeShare = jackpot / ticketsSold[gameId];
         }
-        (bool success, bytes memory data) = payable(whomst).call{value: share}(
-            ""
-        );
-        require(success, string(data));
+        _transferOrBust(whomst, prizeShare);
+    }
+
+    /// @notice Withdraw accrued community fees
+    function withdrawAccruedFees() external onlyOwner {
+        uint256 totalAccrued = accruedCommunityFees;
+        accruedCommunityFees = 0;
+        _transferOrBust(msg.sender, totalAccrued);
+    }
+
+    /// @notice Transfer via raw call; revert on failure
+    /// @param to Address to transfer to
+    /// @param value Value (in wei) to transfer
+    function _transferOrBust(address to, uint256 value) internal {
+        (bool success, bytes memory retval) = to.call{value: value}("");
+        if (!success) {
+            revert TransferFailure(to, value, retval);
+        }
+        emit Transferred(to, value);
     }
 }
