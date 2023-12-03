@@ -1,48 +1,7 @@
 [
   {
-    "inputs": [
-      {
-        "internalType": "string",
-        "name": "name_",
-        "type": "string"
-      },
-      {
-        "internalType": "string",
-        "name": "symbol_",
-        "type": "string"
-      },
-      {
-        "internalType": "uint256",
-        "name": "numPicks_",
-        "type": "uint256"
-      },
-      {
-        "internalType": "uint8",
-        "name": "maxBallValue_",
-        "type": "uint8"
-      },
-      {
-        "internalType": "uint256",
-        "name": "gamePeriod_",
-        "type": "uint256"
-      },
-      {
-        "internalType": "uint256",
-        "name": "ticketPrice_",
-        "type": "uint256"
-      },
-      {
-        "internalType": "uint256",
-        "name": "communityFeeBps_",
-        "type": "uint256"
-      },
-      {
-        "internalType": "address",
-        "name": "randomiser_",
-        "type": "address"
-      }
-    ],
-    "stateMutability": "payable",
+    "inputs": [],
+    "stateMutability": "nonpayable",
     "type": "constructor"
   },
   {
@@ -230,6 +189,11 @@
   },
   {
     "inputs": [],
+    "name": "InvalidInitialization",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "InvalidInputs",
     "type": "error"
   },
@@ -280,6 +244,11 @@
       }
     ],
     "name": "NoWin",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "NotInitializing",
     "type": "error"
   },
   {
@@ -473,6 +442,19 @@
       }
     ],
     "name": "GameFinalised",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "uint64",
+        "name": "version",
+        "type": "uint64"
+      }
+    ],
+    "name": "Initialized",
     "type": "event"
   },
   {
@@ -727,6 +709,59 @@
       }
     ],
     "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "owner_",
+        "type": "address"
+      },
+      {
+        "internalType": "string",
+        "name": "name_",
+        "type": "string"
+      },
+      {
+        "internalType": "string",
+        "name": "symbol_",
+        "type": "string"
+      },
+      {
+        "internalType": "uint256",
+        "name": "numPicks_",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint8",
+        "name": "maxBallValue_",
+        "type": "uint8"
+      },
+      {
+        "internalType": "uint256",
+        "name": "gamePeriod_",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "ticketPrice_",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "communityFeeBps_",
+        "type": "uint256"
+      },
+      {
+        "internalType": "address",
+        "name": "randomiser_",
+        "type": "address"
+      }
+    ],
+    "name": "init",
+    "outputs": [],
+    "stateMutability": "payable",
     "type": "function"
   },
   {

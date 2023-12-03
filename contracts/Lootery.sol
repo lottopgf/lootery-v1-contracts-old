@@ -3,14 +3,20 @@ pragma solidity 0.8.23;
 
 import {FeistelShuffleOptimised} from "./lib/FeistelShuffleOptimised.sol";
 import {Sort} from "./lib/Sort.sol";
-import {ERC721, ERC721Enumerable} from "@openzeppelin/contracts/token/ERC721/extensions/ERC721Enumerable.sol";
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import {ERC721Upgradeable, ERC721EnumerableUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC721/extensions/ERC721EnumerableUpgradeable.sol";
+import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {IRandomiserCallback} from "./interfaces/IRandomiserCallback.sol";
 import {IRandomiserGen2} from "./interfaces/IRandomiserGen2.sol";
 
 /// @title Lootery
 /// @notice Lotto the ultimate
-contract Lootery is IRandomiserCallback, ERC721Enumerable, Ownable {
+contract Lootery is
+    IRandomiserCallback,
+    Initializable,
+    OwnableUpgradeable,
+    ERC721EnumerableUpgradeable
+{
     using Sort for uint8[];
 
     /// @notice Current state of the lootery
@@ -38,17 +44,17 @@ contract Lootery is IRandomiserCallback, ERC721Enumerable, Ownable {
 
     /// @notice How many numbers must be picked per draw (and per ticket)
     ///     The range of this number should be something like 3-7
-    uint256 public immutable numPicks;
+    uint256 public numPicks;
     /// @notice Maximum value of a ball (pick) s.t. value \in [1, maxBallValue]
-    uint8 public immutable maxBallValue;
+    uint8 public maxBallValue;
     /// @notice How long a game lasts in seconds (before numbers are drawn)
-    uint256 public immutable gamePeriod;
+    uint256 public gamePeriod;
     /// @notice Trusted randomiser
-    address public immutable randomiser;
+    address public randomiser;
     /// @notice Ticket price
-    uint256 public immutable ticketPrice;
+    uint256 public ticketPrice;
     /// @notice Percentage of ticket price directed to the community
-    uint256 public immutable communityFeeBps;
+    uint256 public communityFeeBps;
 
     /// @dev Current token id
     uint256 private currentTokenId;
@@ -103,7 +109,13 @@ contract Lootery is IRandomiserCallback, ERC721Enumerable, Ownable {
     error NoWin(uint256 pickId, uint256 winningPickId);
     error WaitLonger(uint256 deadline);
 
-    constructor(
+    constructor() {
+        _disableInitializers();
+    }
+
+    /// @notice Initialisoooooooor
+    function init(
+        address owner_,
         string memory name_,
         string memory symbol_,
         uint256 numPicks_,
@@ -112,7 +124,10 @@ contract Lootery is IRandomiserCallback, ERC721Enumerable, Ownable {
         uint256 ticketPrice_,
         uint256 communityFeeBps_,
         address randomiser_
-    ) payable ERC721(name_, symbol_) Ownable(msg.sender) {
+    ) public payable initializer {
+        __Ownable_init(owner_);
+        __ERC721_init(name_, symbol_);
+
         if (numPicks_ == 0) {
             revert InvalidNumPicks(numPicks_);
         }

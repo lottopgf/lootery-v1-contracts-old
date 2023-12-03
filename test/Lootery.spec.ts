@@ -1,8 +1,13 @@
 import { ethers } from 'hardhat'
 import { time } from '@nomicfoundation/hardhat-network-helpers'
-import { Lootery__factory, MockRandomiser, MockRandomiser__factory } from '../typechain-types'
+import {
+    Lootery__factory,
+    MockRandomiser,
+    MockRandomiser__factory,
+    ERC1967Proxy__factory,
+} from '../typechain-types'
 import { SignerWithAddress } from '@nomicfoundation/hardhat-ethers/signers'
-import { parseEther } from 'ethers'
+import { BytesLike, ContractFactory, ContractRunner, Signer, parseEther } from 'ethers'
 import { expect } from 'chai'
 
 function keccak(balls: bigint[]) {
@@ -10,6 +15,26 @@ function keccak(balls: bigint[]) {
         balls.map((_) => 'uint8'),
         balls,
     )
+}
+
+async function deployProxy<
+    TContractFactory extends ContractFactory,
+    TContract = ReturnType<TContractFactory['deploy']>,
+>({
+    deployer,
+    implementation,
+    initData,
+}: {
+    deployer: Signer
+    implementation: { new (runner?: Signer): TContractFactory }
+    initData: BytesLike
+}): Promise<TContract> {
+    const impl = await new implementation(deployer).deploy()
+    const proxy = await new ERC1967Proxy__factory(deployer).deploy(
+        await impl.getAddress(),
+        initData,
+    )
+    return new implementation(deployer).attach(await proxy.getAddress()) as TContract
 }
 
 describe('Lootery', () => {
@@ -24,17 +49,21 @@ describe('Lootery', () => {
 
     it('runs happy path', async () => {
         const gamePeriod = BigInt(1 * 60 * 60) // 1h
-        const lotto = await new Lootery__factory(deployer).deploy(
-            'Lotto',
-            'LOTTO',
-            5,
-            69,
-            gamePeriod,
-            parseEther('0.1'),
-            5000, // 50%
-            await mockRandomiser.getAddress(),
-        )
-
+        const lotto = await deployProxy({
+            deployer,
+            implementation: Lootery__factory,
+            initData: await Lootery__factory.createInterface().encodeFunctionData('init', [
+                deployer.address,
+                'Lotto',
+                'LOTTO',
+                5,
+                69,
+                gamePeriod,
+                parseEther('0.1'),
+                5000, // 50%
+                await mockRandomiser.getAddress(),
+            ]),
+        })
         // Allow seeding jackpot
         await lotto.seedJackpot({
             value: parseEther('10'),
