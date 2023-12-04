@@ -1,6 +1,10 @@
 import { ethers, run } from 'hardhat'
-import { Lootery__factory, MockRandomiser__factory } from '../typechain-types'
-import { parseEther } from 'ethers'
+import {
+    ERC1967Proxy__factory,
+    LooteryFactory__factory,
+    Lootery__factory,
+    MockRandomiser__factory,
+} from '../typechain-types'
 
 async function main() {
     const [deployer] = await ethers.getSigners()
@@ -11,20 +15,19 @@ async function main() {
         .then((tx) => tx.waitForDeployment())
     console.log(`MockRandomiser deployed at: ${await mockRandomiser.getAddress()}`)
 
-    const looteryArgs: Parameters<Lootery__factory['deploy']> = [
-        'Test Lootery',
-        'TLOOT',
-        5,
-        10,
-        10 * 60 /** 10mins */,
-        parseEther('0.001'),
-        5000,
-        (await mockRandomiser).getAddress(),
+    const looteryImpl = await new Lootery__factory(deployer).deploy()
+    const factoryImpl = await new LooteryFactory__factory(deployer).deploy()
+    const initData = LooteryFactory__factory.createInterface().encodeFunctionData('init', [
+        await looteryImpl.getAddress(),
+        await mockRandomiser.getAddress(),
+    ])
+    const factoryProxyArgs: Parameters<ERC1967Proxy__factory['deploy']> = [
+        await factoryImpl.getAddress(),
+        initData,
     ]
-    const lootery = await new Lootery__factory(deployer)
-        .deploy(...looteryArgs)
-        .then((tx) => tx.waitForDeployment())
-    console.log(`Lootery deployed at: ${await lootery.getAddress()}`)
+    const factoryProxy = await new ERC1967Proxy__factory(deployer).deploy(...factoryProxyArgs)
+    const factory = await LooteryFactory__factory.connect(await factoryProxy.getAddress(), deployer)
+    console.log(`LooteryFactory deployed at: ${await factory.getAddress()}`)
 
     await new Promise((resolve) => setTimeout(resolve, 30_000))
     await run('verify:verify', {
@@ -32,8 +35,16 @@ async function main() {
         constructorArguments: [],
     })
     await run('verify:verify', {
-        address: await lootery.getAddress(),
-        constructorArguments: looteryArgs,
+        address: await looteryImpl.getAddress(),
+        constructorArguments: [],
+    })
+    await run('verify:verify', {
+        address: await factoryImpl.getAddress(),
+        constructorArguments: [],
+    })
+    await run('verify:verify', {
+        address: await factoryProxy.getAddress(),
+        constructorArguments: factoryProxyArgs,
     })
 }
 
