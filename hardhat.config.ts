@@ -47,7 +47,7 @@ const config: HardhatUserConfig = {
     gasReporter: {
         enabled: true,
         currency: 'USD',
-        gasPrice: 60,
+        gasPrice: 1,
     },
     etherscan: {
         apiKey: {

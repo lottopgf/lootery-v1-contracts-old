@@ -4,7 +4,7 @@ pragma solidity 0.8.23;
 import {FeistelShuffleOptimised} from "./lib/FeistelShuffleOptimised.sol";
 import {Sort} from "./lib/Sort.sol";
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
-import {ERC721Upgradeable, ERC721EnumerableUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC721/extensions/ERC721EnumerableUpgradeable.sol";
+import {ERC721Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC721/ERC721Upgradeable.sol";
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {IRandomiserCallback} from "./interfaces/IRandomiserCallback.sol";
 import {IRandomiserGen2} from "./interfaces/IRandomiserGen2.sol";
@@ -15,7 +15,7 @@ contract Lootery is
     IRandomiserCallback,
     Initializable,
     OwnableUpgradeable,
-    ERC721EnumerableUpgradeable
+    ERC721Upgradeable
 {
     using Sort for uint8[];
 
@@ -245,11 +245,11 @@ contract Lootery is
             // Record picked numbers
             uint256 tokenId = startingTokenId + t;
             uint256 pickId = computePickIdentity(picks);
-            tokenIdToTicket[tokenId] = pickId; // 20k gas
-            _safeMint(whomst, tokenId); // 120k gas
+            tokenIdToTicket[tokenId] = pickId;
+            _safeMint(whomst, tokenId);
 
             // Account for this pick set
-            tokenByPickIdentity[gameId][pickId].push(tokenId); // 40k gas
+            tokenByPickIdentity[gameId][pickId].push(tokenId);
             emit TicketPurchased(gameId, whomst, tokenId, picks);
         }
     }

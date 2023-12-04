@@ -87,8 +87,8 @@ describe('Lootery', () => {
         )
         // Bob receives NFT ticket
         expect(await lotto.balanceOf(bob.address)).to.eq(1)
-        const ticketTokenId = await lotto.tokenOfOwnerByIndex(bob.address, 0)
-        expect(ticketTokenId).to.eq(1)
+        const ticketTokenId = 1
+        expect(await lotto.ownerOf(ticketTokenId)).to.eq(bob.address)
 
         // Draw
         await time.increase(gamePeriod)
