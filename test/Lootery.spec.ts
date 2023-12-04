@@ -110,7 +110,7 @@ describe('Lootery', () => {
         expect(await lotto.winningPickIds(emittedGameId)).to.eq(keccak(emittedBalls))
 
         // Bob claims entire pot
-        const jackpot = await lotto.jackpots(gameId)
+        const jackpot = await lotto.gameData(gameId).then((data) => data.jackpot)
         expect(jackpot).to.eq(parseEther('10.05'))
         const balanceBefore = await ethers.provider.getBalance(bob.address)
         await lotto.claimWinnings(ticketTokenId)

@@ -36,6 +36,13 @@ contract Lootery is
         uint8[] picks;
     }
 
+    struct Game {
+        /// @notice Running jackpot total (in wei)
+        uint192 jackpot;
+        /// @notice Number of tickets sold per game
+        uint64 ticketsSold;
+    }
+
     /// @notice Describes an inflight randomness request
     struct RandomnessRequest {
         uint208 requestId;
@@ -67,16 +74,14 @@ contract Lootery is
     /// @notice Winning pick identities per game, once they've been drawn
     mapping(uint256 gameId => uint256) public winningPickIds;
     /// @notice token id => picks
-    mapping(uint256 tokenId => uint8[]) public tokenIdToTicket;
+    mapping(uint256 tokenId => uint256) public tokenIdToTicket;
     /// @notice token id => game id
     mapping(uint256 tokenId => uint256) public tokenIdToGameId;
+    /// @notice Game data
+    mapping(uint256 gameId => Game) public gameData;
     /// @notice Game id => pick identity => tokenIds
     mapping(uint256 gameId => mapping(uint256 id => uint256[]))
         public tokenByPickIdentity;
-    /// @notice Number of tickets sold per game
-    mapping(uint256 gameId => uint256) public ticketsSold;
-    /// @notice Current jackpot (in wei)
-    mapping(uint256 gameId => uint256) public jackpots;
     /// @notice Accrued community fee share (wei)
     uint256 public accruedCommunityFees;
     /// @notice Block timestamp of when the game started
@@ -108,6 +113,8 @@ contract Lootery is
     error InsufficientRandomWords();
     error NoWin(uint256 pickId, uint256 winningPickId);
     error WaitLonger(uint256 deadline);
+    error JackpotOverflow(uint256 value);
+    error TicketsSoldOverflow(uint256 value);
 
     constructor() {
         _disableInitializers();
@@ -151,7 +158,10 @@ contract Lootery is
         randomiser = randomiser_;
 
         // Seed the jackpot
-        jackpots[0] += msg.value;
+        if (msg.value > type(uint192).max) {
+            revert JackpotOverflow(msg.value);
+        }
+        gameData[0].jackpot += uint192(msg.value);
         // The first game starts straight away
         gameStartedAt[0] = block.timestamp;
     }
@@ -163,7 +173,10 @@ contract Lootery is
         if (gameState != GameState.Purchase) {
             revert UnexpectedState(gameState, GameState.Purchase);
         }
-        jackpots[currentGameId] += msg.value;
+        if (msg.value > type(uint192).max) {
+            revert JackpotOverflow(msg.value);
+        }
+        gameData[currentGameId].jackpot += uint192(msg.value);
     }
 
     /// @notice Compute the identity of an ordered set of numbers
@@ -180,43 +193,63 @@ contract Lootery is
     /// @notice Purchase a ticket
     /// @param tickets Tickets! Tickets!
     function purchase(Ticket[] calldata tickets) external payable {
-        uint256 totalPrice = ticketPrice * tickets.length;
+        uint256 ticketsCount = tickets.length;
+        uint256 totalPrice = ticketPrice * ticketsCount;
         if (msg.value != totalPrice) {
             revert IncorrectPaymentAmount(msg.value, totalPrice);
         }
 
         uint256 gameId = currentGameId;
 
+        // Handle fee splits
+        uint256 communityFeeShare = (msg.value * communityFeeBps) / 10000;
+        uint256 jackpotShare = msg.value - communityFeeShare;
+        if (jackpotShare > type(uint192).max) {
+            revert JackpotOverflow(jackpotShare);
+        }
+        accruedCommunityFees += communityFeeShare;
+        Game memory game = gameData[currentGameId];
+        if (uint256(game.ticketsSold) + ticketsCount > type(uint64).max) {
+            revert TicketsSoldOverflow(
+                uint256(game.ticketsSold) + ticketsCount
+            );
+        }
+        gameData[currentGameId] = Game({
+            jackpot: game.jackpot + uint192(jackpotShare),
+            ticketsSold: game.ticketsSold + uint64(ticketsCount)
+        });
+
         address whomst;
         uint8[] memory picks;
-        for (uint256 t; t < tickets.length; ++t) {
+        uint256 numPicks_ = numPicks;
+        uint256 maxBallValue_ = maxBallValue;
+        uint256 startingTokenId = currentTokenId + 1;
+        currentTokenId += ticketsCount;
+        for (uint256 t; t < ticketsCount; ++t) {
             whomst = tickets[t].whomst;
             picks = tickets[t].picks;
-            // Handle fee splits
-            uint256 communityFeeShare = (msg.value * communityFeeBps) / 10000;
-            accruedCommunityFees += communityFeeShare;
-            jackpots[gameId] += msg.value - communityFeeShare;
 
-            if (picks.length != numPicks) {
+            if (picks.length != numPicks_) {
                 revert InvalidNumPicks(picks.length);
             }
 
             // Assert picks are ascendingly sorted, with no possibility of duplicates
             uint8 lastPick;
-            for (uint256 i = 0; i < numPicks; ++i) {
+            for (uint256 i; i < numPicks_; ++i) {
                 uint8 pick = picks[i];
                 if (pick <= lastPick) revert UnsortedPicks(picks);
-                if (pick > maxBallValue) revert InvalidBallValue(pick);
+                if (pick > maxBallValue_) revert InvalidBallValue(pick);
                 lastPick = pick;
             }
+
             // Record picked numbers
-            uint256 tokenId = ++currentTokenId;
-            tokenIdToTicket[tokenId] = picks;
-            ticketsSold[gameId] += 1;
-            _safeMint(whomst, tokenId);
+            uint256 tokenId = startingTokenId + t;
+            uint256 pickId = computePickIdentity(picks);
+            tokenIdToTicket[tokenId] = pickId; // 20k gas
+            _safeMint(whomst, tokenId); // 120k gas
+
             // Account for this pick set
-            uint256 id = computePickIdentity(picks);
-            tokenByPickIdentity[gameId][id].push(tokenId);
+            tokenByPickIdentity[gameId][pickId].push(tokenId); // 40k gas
             emit TicketPurchased(gameId, whomst, tokenId, picks);
         }
     }
@@ -309,13 +342,14 @@ contract Lootery is
         // Check winning balls from game
         uint256 gameId = tokenIdToGameId[tokenId];
         uint256 winningPickId = winningPickIds[gameId];
-        uint256 ticketPickId = computePickIdentity(tokenIdToTicket[tokenId]);
+        uint256 ticketPickId = tokenIdToTicket[tokenId];
         if (winningPickId != ticketPickId) {
             revert NoWin(ticketPickId, winningPickId);
         }
 
         // Determine if the jackpot was won
-        uint256 jackpot = jackpots[gameId];
+        Game memory game = gameData[gameId];
+        uint256 jackpot = game.jackpot;
         uint256 numWinners = tokenByPickIdentity[gameId][winningPickId].length;
         uint256 prizeShare;
         if (numWinners > 0) {
@@ -324,7 +358,7 @@ contract Lootery is
         } else {
             // No jackpot winners :(
             // Jackpot is shared between all tickets
-            prizeShare = jackpot / ticketsSold[gameId];
+            prizeShare = jackpot / game.ticketsSold;
         }
         _transferOrBust(whomst, prizeShare);
     }
