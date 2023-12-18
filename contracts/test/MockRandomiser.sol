@@ -3,10 +3,10 @@ pragma solidity ^0.8;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "../interfaces/IRandomiserGen2.sol";
 import "../interfaces/IRandomiserCallback.sol";
+import "../interfaces/IRNGesusReloaded.sol";
 
-contract MockRandomiser is IRandomiserGen2, Ownable {
+contract MockRandomiser is IRNGesusReloaded, Ownable {
     uint256 public nextRequestId = 1;
     mapping(uint256 => address) private requestIdToCallbackMap;
     mapping(address => bool) public authorisedContracts;
@@ -18,13 +18,12 @@ contract MockRandomiser is IRandomiserGen2, Ownable {
     /**
      * Requests randomness
      */
-    function getRandomNumber(
-        address callbackContract,
-        uint32 callbackGasLimit,
-        uint16 minConfirmations
-    ) public payable returns (uint256 requestId) {
-        requestId = nextRequestId++;
-        requestIdToCallbackMap[requestId] = callbackContract;
+    function requestRandomness(
+        uint256 deadline,
+        uint256 callbackGasLimit
+    ) external payable returns (uint256) {
+        uint256 requestId = nextRequestId++;
+        requestIdToCallbackMap[requestId] = msg.sender;
         return requestId;
     }
 

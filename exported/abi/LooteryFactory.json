@@ -136,6 +136,25 @@
     "anonymous": false,
     "inputs": [
       {
+        "indexed": false,
+        "internalType": "address",
+        "name": "oldRandomiser",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "address",
+        "name": "newRandomiser",
+        "type": "address"
+      }
+    ],
+    "name": "RandomiserUpdated",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
         "indexed": true,
         "internalType": "bytes32",
         "name": "role",
@@ -348,6 +367,19 @@
     "type": "function"
   },
   {
+    "inputs": [],
+    "name": "getRandomiser",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
     "inputs": [
       {
         "internalType": "bytes32",
@@ -471,6 +503,19 @@
       }
     ],
     "name": "revokeRole",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "randomiser",
+        "type": "address"
+      }
+    ],
+    "name": "setRandomiser",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"

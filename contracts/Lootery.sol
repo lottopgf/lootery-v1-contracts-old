@@ -7,7 +7,7 @@ import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Ini
 import {ERC721Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC721/ERC721Upgradeable.sol";
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {IRandomiserCallback} from "./interfaces/IRandomiserCallback.sol";
-import {IRandomiserGen2} from "./interfaces/IRandomiserGen2.sol";
+import {IRNGesusReloaded} from "./interfaces/IRNGesusReloaded.sol";
 
 /// @title Lootery
 /// @notice Lotto the ultimate
@@ -286,10 +286,9 @@ contract Lootery is
         ) {
             revert RequestAlreadyInFlight(randReq.requestId, randReq.timestamp);
         }
-        uint256 requestId = IRandomiserGen2(randomiser).getRandomNumber(
-            address(this),
-            500_000,
-            6
+        uint256 requestId = IRNGesusReloaded(randomiser).requestRandomness(
+            block.timestamp + 30,
+            500_000
         );
         if (requestId > type(uint208).max) {
             revert RequestIdOverflow(requestId);

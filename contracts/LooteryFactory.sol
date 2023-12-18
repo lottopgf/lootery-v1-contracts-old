@@ -28,6 +28,7 @@ contract LooteryFactory is UUPSUpgradeable, AccessControlUpgradeable {
         address indexed deployer,
         string name
     );
+    event RandomiserUpdated(address oldRandomiser, address newRandomiser);
 
     constructor() {
         _disableInitializers();
@@ -53,6 +54,18 @@ contract LooteryFactory is UUPSUpgradeable, AccessControlUpgradeable {
     function _authorizeUpgrade(
         address newImplementation
     ) internal virtual override onlyRole(DEFAULT_ADMIN_ROLE) {}
+
+    function setRandomiser(
+        address randomiser
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        address oldRandomiser = RANDOMISER_SLOT.getAddressSlot().value;
+        RANDOMISER_SLOT.getAddressSlot().value = randomiser;
+        emit RandomiserUpdated(oldRandomiser, randomiser);
+    }
+
+    function getRandomiser() external view returns (address) {
+        return RANDOMISER_SLOT.getAddressSlot().value;
+    }
 
     /// @notice Compute salt used in computing deployment addresses
     function computeSalt(uint256 nonce) internal pure returns (bytes32) {
