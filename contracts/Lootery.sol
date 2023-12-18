@@ -95,6 +95,18 @@ contract Lootery is
     );
     event GameFinalised(uint256 gameId, uint8[] winningPicks);
     event Transferred(address to, uint256 value);
+    event WinningsClaimed(
+        uint256 indexed tokenId,
+        uint256 indexed gameId,
+        address whomst,
+        uint256 value
+    );
+    event ConsolationClaimed(
+        uint256 indexed tokenId,
+        uint256 indexed gameId,
+        address whomst,
+        uint256 value
+    );
 
     error TransferFailure(address to, uint256 value, bytes reason);
     error InvalidNumPicks(uint256 numPicks);
@@ -332,35 +344,45 @@ contract Lootery is
     }
 
     /// @notice Claim a share of the jackpot with a winning ticket
+    /// @param tokenId Token id of the ticket (will be burnt)
     function claimWinnings(uint256 tokenId) external {
         address whomst = _ownerOf(tokenId);
         if (whomst == address(0)) {
             revert ERC721NonexistentToken(tokenId);
         }
+        // Burning the token is our "claim nullifier"
         _burn(tokenId);
 
         // Check winning balls from game
         uint256 gameId = tokenIdToGameId[tokenId];
         uint256 winningPickId = winningPickIds[gameId];
         uint256 ticketPickId = tokenIdToTicket[tokenId];
-        if (winningPickId != ticketPickId) {
-            revert NoWin(ticketPickId, winningPickId);
-        }
 
         // Determine if the jackpot was won
         Game memory game = gameData[gameId];
         uint256 jackpot = game.jackpot;
         uint256 numWinners = tokenByPickIdentity[gameId][winningPickId].length;
-        uint256 prizeShare;
-        if (numWinners > 0) {
-            // Transfer share of jackpot to ticket holder
-            prizeShare = jackpot / numWinners;
-        } else {
-            // No jackpot winners :(
+        if (numWinners == 0) {
+            // No jackpot winners!
             // Jackpot is shared between all tickets
-            prizeShare = jackpot / game.ticketsSold;
+            // Invariant: `ticketsSold[gameId] > 0`
+            uint256 prizeShare = jackpot / gameData[gameId].ticketsSold;
+            _transferOrBust(whomst, prizeShare);
+            emit ConsolationClaimed(tokenId, gameId, whomst, prizeShare);
+            return;
         }
-        _transferOrBust(whomst, prizeShare);
+
+        if (winningPickId == ticketPickId) {
+            // This ticket did have the winning numbers
+            // Transfer share of jackpot to ticket holder
+            // NB: `numWinners` != 0 in this path
+            uint256 prizeShare = jackpot / numWinners;
+            _transferOrBust(whomst, prizeShare);
+            emit WinningsClaimed(tokenId, gameId, whomst, prizeShare);
+            return;
+        }
+
+        revert NoWin(ticketPickId, winningPickId);
     }
 
     /// @notice Withdraw accrued community fees

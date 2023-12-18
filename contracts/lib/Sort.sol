@@ -10,11 +10,15 @@ library Sort {
         uint256 len = unsorted.length;
         for (uint256 i = 1; i < len; ++i) {
             uint8 curr = unsorted[i];
-            uint256 j = i - 1;
-            for (; curr < unsorted[j] && j >= 0; --j) {
-                unsorted[j + 1] = unsorted[j];
+            int256 j;
+            for (
+                j = int256(i) - 1;
+                j >= 0 && curr < unsorted[uint256(j)];
+                --j
+            ) {
+                unsorted[uint256(j + 1)] = unsorted[uint256(j)];
             }
-            unsorted[j + 1] = curr;
+            unsorted[uint256(j + 1)] = curr;
         }
         return unsorted;
     }
