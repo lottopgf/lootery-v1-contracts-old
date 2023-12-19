@@ -269,7 +269,7 @@ contract Lootery is
 
     /// @notice Draw numbers, picking potential jackpot winners and ending the
     ///     current game. This should be automated by a keeper.
-    function draw() external payable {
+    function draw() external {
         // Assert we're in the correct state
         if (gameState != GameState.Purchase) {
             revert UnexpectedState(gameState, GameState.Purchase);
