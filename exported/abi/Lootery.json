@@ -730,7 +730,7 @@
     "inputs": [],
     "name": "draw",
     "outputs": [],
-    "stateMutability": "payable",
+    "stateMutability": "nonpayable",
     "type": "function"
   },
   {
