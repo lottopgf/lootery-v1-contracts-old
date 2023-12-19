@@ -744,13 +744,18 @@
     "name": "gameData",
     "outputs": [
       {
-        "internalType": "uint192",
+        "internalType": "uint128",
         "name": "jackpot",
-        "type": "uint192"
+        "type": "uint128"
       },
       {
         "internalType": "uint64",
         "name": "ticketsSold",
+        "type": "uint64"
+      },
+      {
+        "internalType": "uint64",
+        "name": "startedAt",
         "type": "uint64"
       }
     ],
@@ -760,25 +765,6 @@
   {
     "inputs": [],
     "name": "gamePeriod",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "uint256",
-        "name": "gameId",
-        "type": "uint256"
-      }
-    ],
-    "name": "gameStartedAt",
     "outputs": [
       {
         "internalType": "uint256",

@@ -38,9 +38,11 @@ contract Lootery is
 
     struct Game {
         /// @notice Running jackpot total (in wei)
-        uint192 jackpot;
+        uint128 jackpot;
         /// @notice Number of tickets sold per game
         uint64 ticketsSold;
+        /// @notice Timestamp of when the game started
+        uint64 startedAt;
     }
 
     /// @notice Describes an inflight randomness request
@@ -84,8 +86,6 @@ contract Lootery is
         public tokenByPickIdentity;
     /// @notice Accrued community fee share (wei)
     uint256 public accruedCommunityFees;
-    /// @notice Block timestamp of when the game started
-    mapping(uint256 gameId => uint256) public gameStartedAt;
 
     event TicketPurchased(
         uint256 indexed gameId,
@@ -171,12 +171,15 @@ contract Lootery is
         randomiser = randomiser_;
 
         // Seed the jackpot
-        if (msg.value > type(uint192).max) {
+        if (msg.value > type(uint128).max) {
             revert JackpotOverflow(msg.value);
         }
-        gameData[0].jackpot += uint192(msg.value);
-        // The first game starts straight away
-        gameStartedAt[0] = block.timestamp;
+        gameData[0] = Game({
+            jackpot: uint128(msg.value),
+            ticketsSold: 0,
+            // The first game starts straight away
+            startedAt: uint64(block.timestamp)
+        });
     }
 
     /// @notice Seed the jackpot
@@ -186,10 +189,10 @@ contract Lootery is
         if (gameState != GameState.Purchase) {
             revert UnexpectedState(gameState, GameState.Purchase);
         }
-        if (msg.value > type(uint192).max) {
+        if (msg.value > type(uint128).max) {
             revert JackpotOverflow(msg.value);
         }
-        gameData[currentGameId].jackpot += uint192(msg.value);
+        gameData[currentGameId].jackpot += uint128(msg.value);
     }
 
     /// @notice Compute the identity of an ordered set of numbers
@@ -217,7 +220,7 @@ contract Lootery is
         // Handle fee splits
         uint256 communityFeeShare = (msg.value * communityFeeBps) / 10000;
         uint256 jackpotShare = msg.value - communityFeeShare;
-        if (jackpotShare > type(uint192).max) {
+        if (jackpotShare > type(uint128).max) {
             revert JackpotOverflow(jackpotShare);
         }
         accruedCommunityFees += communityFeeShare;
@@ -228,8 +231,9 @@ contract Lootery is
             );
         }
         gameData[currentGameId] = Game({
-            jackpot: game.jackpot + uint192(jackpotShare),
-            ticketsSold: game.ticketsSold + uint64(ticketsCount)
+            jackpot: game.jackpot + uint128(jackpotShare),
+            ticketsSold: game.ticketsSold + uint64(ticketsCount),
+            startedAt: game.startedAt
         });
 
         address whomst;
@@ -275,8 +279,9 @@ contract Lootery is
             revert UnexpectedState(gameState, GameState.Purchase);
         }
         gameState = GameState.DrawPending;
+        Game memory game = gameData[currentGameId];
         // Assert that the game is actually over
-        uint256 gameDeadline = (gameStartedAt[currentGameId] + gamePeriod);
+        uint256 gameDeadline = (game.startedAt + gamePeriod);
         if (block.timestamp < gameDeadline) {
             revert WaitLonger(gameDeadline);
         }
