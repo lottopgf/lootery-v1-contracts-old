@@ -3,23 +3,18 @@ import {
     ERC1967Proxy__factory,
     LooteryFactory__factory,
     Lootery__factory,
-    MockRandomiser__factory,
 } from '../typechain-types'
+
+const RNGESUS_ADDRESS = '0xd0e5895353BB4445E5B06935B2ACc1D427C24529' /** scroll sepolia */
 
 async function main() {
     const [deployer] = await ethers.getSigners()
-
-    // **TESTNET ONLY**
-    const mockRandomiser = await new MockRandomiser__factory(deployer)
-        .deploy()
-        .then((tx) => tx.waitForDeployment())
-    console.log(`MockRandomiser deployed at: ${await mockRandomiser.getAddress()}`)
 
     const looteryImpl = await new Lootery__factory(deployer).deploy()
     const factoryImpl = await new LooteryFactory__factory(deployer).deploy()
     const initData = LooteryFactory__factory.createInterface().encodeFunctionData('init', [
         await looteryImpl.getAddress(),
-        await mockRandomiser.getAddress(),
+        RNGESUS_ADDRESS,
     ])
     const factoryProxyArgs: Parameters<ERC1967Proxy__factory['deploy']> = [
         await factoryImpl.getAddress(),
@@ -30,10 +25,6 @@ async function main() {
     console.log(`LooteryFactory deployed at: ${await factory.getAddress()}`)
 
     await new Promise((resolve) => setTimeout(resolve, 30_000))
-    await run('verify:verify', {
-        address: await mockRandomiser.getAddress(),
-        constructorArguments: [],
-    })
     await run('verify:verify', {
         address: await looteryImpl.getAddress(),
         constructorArguments: [],

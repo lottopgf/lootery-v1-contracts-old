@@ -140,6 +140,22 @@
     "type": "error"
   },
   {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "have",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "want",
+        "type": "uint256"
+      }
+    ],
+    "name": "InsufficientOperationalFunds",
+    "type": "error"
+  },
+  {
     "inputs": [],
     "name": "InsufficientRandomWords",
     "type": "error"
@@ -628,6 +644,13 @@
     "type": "function"
   },
   {
+    "inputs": [],
+    "name": "addOperationalFunds",
+    "outputs": [],
+    "stateMutability": "payable",
+    "type": "function"
+  },
+  {
     "inputs": [
       {
         "internalType": "address",
@@ -707,7 +730,7 @@
     "inputs": [],
     "name": "draw",
     "outputs": [],
-    "stateMutability": "nonpayable",
+    "stateMutability": "payable",
     "type": "function"
   },
   {

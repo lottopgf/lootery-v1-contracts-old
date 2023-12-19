@@ -15,6 +15,10 @@ contract MockRandomiser is IRNGesusReloaded, Ownable {
         authorisedContracts[msg.sender] = true;
     }
 
+    function getRequestPrice(uint256) external view returns (uint256) {
+        return 0.001 ether;
+    }
+
     /**
      * Requests randomness
      */

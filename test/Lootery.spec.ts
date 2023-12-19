@@ -110,7 +110,7 @@ describe('Lootery', () => {
 
         // Withdraw accrued fees
         const accruedFees = await lotto.accruedCommunityFees()
-        expect(accruedFees).to.eq(parseEther('0.05'))
+        expect(accruedFees).to.eq(parseEther('0.049')) // 0.05 - vrfRequestPrice
         await expect(lotto.withdrawAccruedFees()).to.emit(lotto, 'Transferred')
         expect(await lotto.accruedCommunityFees()).to.eq(0)
     })

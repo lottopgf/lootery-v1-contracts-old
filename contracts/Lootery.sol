@@ -127,6 +127,7 @@ contract Lootery is
     error WaitLonger(uint256 deadline);
     error JackpotOverflow(uint256 value);
     error TicketsSoldOverflow(uint256 value);
+    error InsufficientOperationalFunds(uint256 have, uint256 want);
 
     constructor() {
         _disableInitializers();
@@ -268,17 +269,19 @@ contract Lootery is
 
     /// @notice Draw numbers, picking potential jackpot winners and ending the
     ///     current game. This should be automated by a keeper.
-    function draw() external {
+    function draw() external payable {
+        // Assert we're in the correct state
         if (gameState != GameState.Purchase) {
             revert UnexpectedState(gameState, GameState.Purchase);
         }
         gameState = GameState.DrawPending;
-
+        // Assert that the game is actually over
         uint256 gameDeadline = (gameStartedAt[currentGameId] + gamePeriod);
         if (block.timestamp < gameDeadline) {
             revert WaitLonger(gameDeadline);
         }
-
+        // Assert there's not already a request inflight, unless some
+        // reasonable amount of time has already passed
         RandomnessRequest memory randReq = randomnessRequest;
         if (
             randReq.requestId != 0 &&
@@ -286,10 +289,23 @@ contract Lootery is
         ) {
             revert RequestAlreadyInFlight(randReq.requestId, randReq.timestamp);
         }
-        uint256 requestId = IRNGesusReloaded(randomiser).requestRandomness(
-            block.timestamp + 30,
+
+        // Assert that we have enough in operational funds so as to not eat
+        // into jackpots or whatever else.
+        uint256 requestPrice = IRNGesusReloaded(randomiser).getRequestPrice(
             500_000
         );
+        if (accruedCommunityFees < requestPrice) {
+            revert InsufficientOperationalFunds(
+                accruedCommunityFees,
+                requestPrice
+            );
+        }
+        accruedCommunityFees -= requestPrice;
+        // VRF call
+        uint256 requestId = IRNGesusReloaded(randomiser).requestRandomness{
+            value: requestPrice
+        }(block.timestamp + 30, 500_000);
         if (requestId > type(uint208).max) {
             revert RequestIdOverflow(requestId);
         }
@@ -382,6 +398,12 @@ contract Lootery is
         }
 
         revert NoWin(ticketPickId, winningPickId);
+    }
+
+    /// @notice Accrued community fees are used for operational activities such
+    ///     as requesting random numbers. Use this function to top it up.
+    function addOperationalFunds() external payable {
+        accruedCommunityFees += msg.value;
     }
 
     /// @notice Withdraw accrued community fees
