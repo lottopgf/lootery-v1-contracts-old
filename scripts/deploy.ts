@@ -10,8 +10,12 @@ const RNGESUS_ADDRESS = '0xd0e5895353BB4445E5B06935B2ACc1D427C24529' /** scroll 
 async function main() {
     const [deployer] = await ethers.getSigners()
 
-    const looteryImpl = await new Lootery__factory(deployer).deploy()
-    const factoryImpl = await new LooteryFactory__factory(deployer).deploy()
+    const looteryImpl = await new Lootery__factory(deployer)
+        .deploy()
+        .then((tx) => tx.waitForDeployment())
+    const factoryImpl = await new LooteryFactory__factory(deployer)
+        .deploy()
+        .then((tx) => tx.waitForDeployment())
     const initData = LooteryFactory__factory.createInterface().encodeFunctionData('init', [
         await looteryImpl.getAddress(),
         RNGESUS_ADDRESS,
@@ -20,7 +24,9 @@ async function main() {
         await factoryImpl.getAddress(),
         initData,
     ]
-    const factoryProxy = await new ERC1967Proxy__factory(deployer).deploy(...factoryProxyArgs)
+    const factoryProxy = await new ERC1967Proxy__factory(deployer)
+        .deploy(...factoryProxyArgs)
+        .then((tx) => tx.waitForDeployment())
     const factory = await LooteryFactory__factory.connect(await factoryProxy.getAddress(), deployer)
     console.log(`LooteryFactory deployed at: ${await factory.getAddress()}`)
 
