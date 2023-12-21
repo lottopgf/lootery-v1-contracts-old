@@ -271,6 +271,16 @@ contract Lootery is
         }
     }
 
+    function getState() public view returns (GameState) {
+        Game memory game = gameData[currentGameId];
+        if (
+            block.timestamp >= game.startedAt &&
+            block.timestamp < game.startedAt + gamePeriod
+        ) {
+            return GameState.Purchase;
+        }
+    }
+
     /// @notice Draw numbers, picking potential jackpot winners and ending the
     ///     current game. This should be automated by a keeper.
     function draw() external {
@@ -279,11 +289,22 @@ contract Lootery is
             revert UnexpectedState(gameState, GameState.Purchase);
         }
         gameState = GameState.DrawPending;
-        Game memory game = gameData[currentGameId];
+        uint256 currentGameId_ = currentGameId;
+        Game memory game = gameData[currentGameId_];
         // Assert that the game is actually over
         uint256 gameDeadline = (game.startedAt + gamePeriod);
         if (block.timestamp < gameDeadline) {
             revert WaitLonger(gameDeadline);
+        }
+        // Assert that there are actually tickets sold in this game
+        if (game.ticketsSold == 0) {
+            gameState = GameState.Purchase;
+            // No tickets sold; just go to next game (and rollover the jackpot)
+            uint256 nextGameId = currentGameId_ + 1;
+            currentGameId = nextGameId;
+            uint128 currentJackpot = game.jackpot;
+            gameData[currentGameId_].jackpot = 0;
+            gameData[nextGameId].jackpot = currentJackpot;
         }
         // Assert there's not already a request inflight, unless some
         // reasonable amount of time has already passed
