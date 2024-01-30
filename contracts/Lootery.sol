@@ -53,7 +53,7 @@ contract Lootery is
 
     /// @notice How many numbers must be picked per draw (and per ticket)
     ///     The range of this number should be something like 3-7
-    uint256 public numPicks;
+    uint8 public numPicks;
     /// @notice Maximum value of a ball (pick) s.t. value \in [1, maxBallValue]
     uint8 public maxBallValue;
     /// @notice How long a game lasts in seconds (before numbers are drawn)
@@ -138,7 +138,7 @@ contract Lootery is
         address owner_,
         string memory name_,
         string memory symbol_,
-        uint256 numPicks_,
+        uint8 numPicks_,
         uint8 maxBallValue_,
         uint256 gamePeriod_,
         uint256 ticketPrice_,

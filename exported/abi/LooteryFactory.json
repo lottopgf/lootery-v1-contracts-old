@@ -330,9 +330,9 @@
         "type": "string"
       },
       {
-        "internalType": "uint256",
+        "internalType": "uint8",
         "name": "numPicks_",
-        "type": "uint256"
+        "type": "uint8"
       },
       {
         "internalType": "uint8",

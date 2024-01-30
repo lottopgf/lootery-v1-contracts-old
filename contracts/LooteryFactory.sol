@@ -97,7 +97,7 @@ contract LooteryFactory is UUPSUpgradeable, AccessControlUpgradeable {
     function create(
         string memory name_,
         string memory symbol_,
-        uint256 numPicks_,
+        uint8 numPicks_,
         uint8 maxBallValue_,
         uint256 gamePeriod_,
         uint256 ticketPrice_,
