@@ -107,6 +107,7 @@ contract Lootery is
         address whomst,
         uint256 value
     );
+    event DrawSkipped(uint256 indexed gameId);
 
     error TransferFailure(address to, uint256 value, bytes reason);
     error InvalidNumPicks(uint256 numPicks);
@@ -279,11 +280,23 @@ contract Lootery is
             revert UnexpectedState(gameState, GameState.Purchase);
         }
         gameState = GameState.DrawPending;
-        Game memory game = gameData[currentGameId];
+        uint256 currentGameId_ = currentGameId;
+        Game memory game = gameData[currentGameId_];
         // Assert that the game is actually over
         uint256 gameDeadline = (game.startedAt + gamePeriod);
         if (block.timestamp < gameDeadline) {
             revert WaitLonger(gameDeadline);
+        }
+        // Assert that there are actually tickets sold in this game
+        if (game.ticketsSold == 0) {
+            gameState = GameState.Purchase;
+            // No tickets sold; just go to next game (and rollover the jackpot)
+            uint256 nextGameId = currentGameId_ + 1;
+            currentGameId = nextGameId;
+            uint128 currentJackpot = game.jackpot;
+            gameData[currentGameId_].jackpot = 0;
+            gameData[nextGameId].jackpot = currentJackpot;
+            emit DrawSkipped(currentGameId_);
         }
         // Assert there's not already a request inflight, unless some
         // reasonable amount of time has already passed

@@ -165,7 +165,7 @@ describe('Lootery', () => {
         const { lotto, fastForwardAndDraw } = await loadFixture(deploy)
 
         // Buy some tickets (to fund operational costs)
-        await slikpik(lotto, bob.address)
+        await purchaseTicket(lotto, bob.address, [1, 2, 3, 4, 5])
 
         const initialGameId = await lotto.currentGameId()
         await fastForwardAndDraw(6942069320n)
@@ -173,7 +173,8 @@ describe('Lootery', () => {
         for (let i = 0; i < 10; i++) {
             const gameId = await lotto.currentGameId()
             expect(gameId).to.eq(initialGameId + BigInt(i) + 1n)
-            await fastForwardAndDraw(6942069320n + BigInt(i) + 1n)
+            await time.increase(gamePeriod)
+            await expect(lotto.draw()).to.emit(lotto, 'DrawSkipped').withArgs(gameId)
         }
     })
 })
