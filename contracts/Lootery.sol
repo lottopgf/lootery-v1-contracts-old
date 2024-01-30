@@ -361,6 +361,7 @@ contract Lootery is
 
         // Ready for next game
         gameState = GameState.Purchase;
+        gameData[gameId + 1].startedAt = uint64(block.timestamp);
     }
 
     /// @notice Claim a share of the jackpot with a winning ticket

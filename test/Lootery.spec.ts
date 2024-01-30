@@ -1,6 +1,7 @@
 import { ethers } from 'hardhat'
-import { time } from '@nomicfoundation/hardhat-network-helpers'
+import { loadFixture, time } from '@nomicfoundation/hardhat-network-helpers'
 import {
+    Lootery,
     LooteryFactory,
     LooteryFactory__factory,
     Lootery__factory,
@@ -8,9 +9,11 @@ import {
     MockRandomiser__factory,
 } from '../typechain-types'
 import { SignerWithAddress } from '@nomicfoundation/hardhat-ethers/signers'
-import { parseEther } from 'ethers'
+import { BigNumberish, LogDescription, hexlify, parseEther } from 'ethers'
 import { expect } from 'chai'
 import { deployProxy } from './helpers/deployProxy'
+import { encrypt } from '@kevincharm/gfc-fpe'
+import crypto from 'node:crypto'
 
 describe('Lootery', () => {
     let mockRandomiser: MockRandomiser
@@ -117,31 +120,23 @@ describe('Lootery', () => {
 
     it('should let participants claim equal share if nobody won', async () => {
         const gamePeriod = 1n * 60n * 60n
-        const { lotto, draw } = await deployLotto({
-            deployer,
-            gamePeriod,
-        })
+        async function deploy() {
+            return deployLotto({
+                deployer,
+                gamePeriod,
+            })
+        }
+        const { lotto, fastForwardAndDraw } = await loadFixture(deploy)
 
-        await lotto.purchase(
-            [
-                {
-                    whomst: bob.address,
-                    picks: [1, 2, 3, 4, 5],
-                },
-                {
-                    whomst: alice.address,
-                    picks: [1, 2, 3, 4, 6],
-                },
-            ],
-            {
-                value: parseEther('0.2'),
-            },
+        const { tokenId: bobTokenId } = await purchaseTicket(lotto, bob.address, [1, 2, 3, 4, 5])
+        const { tokenId: aliceTokenId } = await purchaseTicket(
+            lotto,
+            alice.address,
+            [1, 2, 3, 4, 6],
         )
-        const bobTokenId = 1
-        const aliceTokenId = 2
         const gameId = await lotto.tokenIdToGameId(bobTokenId)
 
-        await draw(6942069320n)
+        await fastForwardAndDraw(6942069320n)
 
         const { jackpot } = await lotto.gameData(gameId)
         const prizeShare = jackpot / 2n
@@ -157,6 +152,29 @@ describe('Lootery', () => {
         expect(await ethers.provider.getBalance(alice.address)).to.eq(
             aliceBalanceBefore + prizeShare,
         )
+    })
+
+    it('should run games continuously, as long as gamePeriod has elapsed', async () => {
+        const gamePeriod = 1n * 60n * 60n
+        async function deploy() {
+            return deployLotto({
+                deployer,
+                gamePeriod,
+            })
+        }
+        const { lotto, fastForwardAndDraw } = await loadFixture(deploy)
+
+        // Buy some tickets (to fund operational costs)
+        await slikpik(lotto, bob.address)
+
+        const initialGameId = await lotto.currentGameId()
+        await fastForwardAndDraw(6942069320n)
+        await expect(lotto.draw()).to.be.revertedWithCustomError(lotto, 'WaitLonger')
+        for (let i = 0; i < 10; i++) {
+            const gameId = await lotto.currentGameId()
+            expect(gameId).to.eq(initialGameId + BigInt(i) + 1n)
+            await fastForwardAndDraw(6942069320n + BigInt(i) + 1n)
+        }
     })
 })
 
@@ -196,7 +214,7 @@ async function deployLotto({
         value: parseEther('10'),
     })
 
-    const draw = async (randomness: bigint) => {
+    const fastForwardAndDraw = async (randomness: bigint) => {
         // Draw
         await time.increase(gamePeriod)
         await lotto.draw()
@@ -217,6 +235,95 @@ async function deployLotto({
     return {
         lotto,
         mockRandomiser,
-        draw,
+        fastForwardAndDraw,
+    }
+}
+
+/**
+ * Purchase a slikpik ticket. Lotto must be connected to an account
+ * with enough funds to buy a ticket.
+ * @param connectedLotto Lottery contract
+ * @param whomst Who to mint the ticket to
+ */
+async function slikpik(connectedLotto: Lootery, whomst: string) {
+    const numPicks = await connectedLotto.numPicks()
+    const domain = await connectedLotto.maxBallValue()
+    const ticketPrice = await connectedLotto.ticketPrice()
+    // Generate shuffled pick
+    const seed = BigInt(hexlify(crypto.getRandomValues(new Uint8Array(32))))
+    const roundFn = (R: bigint, i: bigint, seed: bigint, domain: bigint) => {
+        return BigInt(
+            ethers.solidityPackedKeccak256(
+                ['uint256', 'uint256', 'uint256', 'uint256'],
+                [R, i, seed, domain],
+            ),
+        )
+    }
+    const picks: bigint[] = []
+    for (let i = 0; i < numPicks; i++) {
+        const pick = 1n + encrypt(BigInt(i), domain, seed, 4n, roundFn)
+        picks.push(pick)
+    }
+    picks.sort((a, b) => Number(a - b))
+    const tx = await connectedLotto
+        .purchase(
+            [
+                {
+                    whomst,
+                    picks,
+                },
+            ],
+            {
+                value: ticketPrice,
+            },
+        )
+        .then((tx) => tx.wait())
+    const parsedLogs = tx!.logs
+        .map((log) =>
+            connectedLotto.interface.parseLog({ topics: log.topics as string[], data: log.data }),
+        )
+        .filter((value): value is LogDescription => !!value)
+    const ticketPurchasedEvent = parsedLogs.find((log) => log.name === 'TicketPurchased')
+    const [, , tokenId] = ticketPurchasedEvent!.args
+    return {
+        tokenId,
+    }
+}
+
+/**
+ * Purchase a ticket. Lotto must be connected to an account
+ * with enough funds to buy a ticket.
+ * @param connectedLotto Lottery contract
+ * @param whomst Who to mint the ticket to
+ * @param picks Picks
+ */
+async function purchaseTicket(connectedLotto: Lootery, whomst: string, picks: BigNumberish[]) {
+    const numPicks = await connectedLotto.numPicks()
+    if (picks.length !== Number(numPicks)) {
+        throw new Error(`Invalid number of picks (expected ${numPicks}, got picks.length)`)
+    }
+    const ticketPrice = await connectedLotto.ticketPrice()
+    const tx = await connectedLotto
+        .purchase(
+            [
+                {
+                    whomst,
+                    picks,
+                },
+            ],
+            {
+                value: ticketPrice,
+            },
+        )
+        .then((tx) => tx.wait())
+    const parsedLogs = tx!.logs
+        .map((log) =>
+            connectedLotto.interface.parseLog({ topics: log.topics as string[], data: log.data }),
+        )
+        .filter((value): value is LogDescription => !!value)
+    const ticketPurchasedEvent = parsedLogs.find((log) => log.name === 'TicketPurchased')
+    const [, , tokenId] = ticketPurchasedEvent!.args
+    return {
+        tokenId,
     }
 }
