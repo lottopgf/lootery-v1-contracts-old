@@ -271,16 +271,6 @@ contract Lootery is
         }
     }
 
-    function getState() public view returns (GameState) {
-        Game memory game = gameData[currentGameId];
-        if (
-            block.timestamp >= game.startedAt &&
-            block.timestamp < game.startedAt + gamePeriod
-        ) {
-            return GameState.Purchase;
-        }
-    }
-
     /// @notice Draw numbers, picking potential jackpot winners and ending the
     ///     current game. This should be automated by a keeper.
     function draw() external {
