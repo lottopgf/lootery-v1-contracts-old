@@ -1,15 +1,15 @@
 {
   "name": "lootery",
   "version": "1.0.0",
-  "description": "Troop Lottery Contracts",
+  "description": "Run your own onchain lottery",
   "scripts": {
     "deploy:scrolltestnet": "yarn hardhat --network scrollSepolia run scripts/deploy.ts",
     "test": "yarn hardhat --network hardhat test",
     "coverage": "yarn hardhat --network hardhat coverage"
   },
   "keywords": [],
-  "author": "Kevin Charm <kevin.charm@troop.finance>",
-  "license": "UNLICENSED",
+  "author": "The LottoPGF Team",
+  "license": "MIT",
   "devDependencies": {
     "@kevincharm/gfc-fpe": "^1.0.0",
     "@nomicfoundation/hardhat-chai-matchers": "^2.0.0",
