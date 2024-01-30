@@ -107,6 +107,7 @@ contract Lootery is
         address whomst,
         uint256 value
     );
+    event DrawSkipped(uint256 indexed gameId);
 
     error TransferFailure(address to, uint256 value, bytes reason);
     error InvalidNumPicks(uint256 numPicks);
@@ -295,6 +296,7 @@ contract Lootery is
             uint128 currentJackpot = game.jackpot;
             gameData[currentGameId_].jackpot = 0;
             gameData[nextGameId].jackpot = currentJackpot;
+            emit DrawSkipped(currentGameId_);
         }
         // Assert there's not already a request inflight, unless some
         // reasonable amount of time has already passed
