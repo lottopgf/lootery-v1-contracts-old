@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "Run your own onchain lottery",
   "scripts": {
-    "deploy:scrolltestnet": "yarn hardhat --network scrollSepolia run scripts/deploy.ts",
+    "deploy:basetestnet": "yarn hardhat --network baseSepolia run scripts/deploy.ts",
     "test": "yarn hardhat --network hardhat test",
     "coverage": "yarn hardhat --network hardhat coverage"
   },

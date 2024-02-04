@@ -25,7 +25,7 @@ const config: HardhatUserConfig = {
             chainId: 534351,
             forking: {
                 enabled: true,
-                url: process.env.SCROLL_SEPOLIA_URL as string,
+                url: process.env.BASE_SEPOLIA_URL as string,
                 blockNumber: 1624600,
             },
             blockGasLimit: 10_000_000,
@@ -33,14 +33,14 @@ const config: HardhatUserConfig = {
                 count: 10,
             },
         },
-        scroll: {
-            chainId: 534352,
-            url: process.env.SCROLL_URL as string,
+        base: {
+            chainId: 8453,
+            url: process.env.BASE_URL as string,
             accounts: [process.env.MAINNET_PK as string],
         },
-        scrollSepolia: {
-            chainId: 534351,
-            url: process.env.SCROLL_SEPOLIA_URL as string,
+        baseSepolia: {
+            chainId: 84532,
+            url: process.env.BASE_SEPOLIA_URL as string,
             accounts: [process.env.MAINNET_PK as string],
         },
     },
@@ -52,24 +52,24 @@ const config: HardhatUserConfig = {
     etherscan: {
         apiKey: {
             mainnet: process.env.ETHERSCAN_API_KEY as string,
-            scroll: process.env.SCROLLSCAN_API_KEY as string,
-            scrollSepolia: process.env.SCROLLSCAN_API_KEY as string,
+            base: process.env.BASESCAN_API_KEY as string,
+            baseSepolia: process.env.BASESCAN_API_KEY as string,
         },
         customChains: [
             {
-                network: 'scroll',
-                chainId: 534352,
+                network: 'base',
+                chainId: 8453,
                 urls: {
-                    apiURL: 'https://api.scrollscan.com/api',
-                    browserURL: 'https://scrollscan.com',
+                    apiURL: 'https://api.basescan.org/api',
+                    browserURL: 'https://basescan.org',
                 },
             },
             {
-                network: 'scrollSepolia',
-                chainId: 534351,
+                network: 'baseSepolia',
+                chainId: 84532,
                 urls: {
-                    apiURL: 'https://api-sepolia.scrollscan.com/api',
-                    browserURL: 'https://sepolia.scrollscan.dev',
+                    apiURL: 'https://base-sepolia.blockscout.com/api',
+                    browserURL: 'https://sepolia-explorer.base.org',
                 },
             },
         ],
