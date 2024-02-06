@@ -657,13 +657,6 @@
     "type": "function"
   },
   {
-    "inputs": [],
-    "name": "addOperationalFunds",
-    "outputs": [],
-    "stateMutability": "payable",
-    "type": "function"
-  },
-  {
     "inputs": [
       {
         "internalType": "address",
@@ -866,11 +859,16 @@
         "internalType": "address",
         "name": "randomiser_",
         "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "prizeToken_",
+        "type": "address"
       }
     ],
     "name": "init",
     "outputs": [],
-    "stateMutability": "payable",
+    "stateMutability": "nonpayable",
     "type": "function"
   },
   {
@@ -969,6 +967,19 @@
     "type": "function"
   },
   {
+    "inputs": [],
+    "name": "prizeToken",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
     "inputs": [
       {
         "components": [
@@ -990,7 +1001,7 @@
     ],
     "name": "purchase",
     "outputs": [],
-    "stateMutability": "payable",
+    "stateMutability": "nonpayable",
     "type": "function"
   },
   {
@@ -1101,10 +1112,16 @@
     "type": "function"
   },
   {
-    "inputs": [],
+    "inputs": [
+      {
+        "internalType": "uint128",
+        "name": "value",
+        "type": "uint128"
+      }
+    ],
     "name": "seedJackpot",
     "outputs": [],
-    "stateMutability": "payable",
+    "stateMutability": "nonpayable",
     "type": "function"
   },
   {

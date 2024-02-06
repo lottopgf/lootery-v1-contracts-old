@@ -353,6 +353,11 @@
         "internalType": "uint256",
         "name": "communityFeeBps_",
         "type": "uint256"
+      },
+      {
+        "internalType": "address",
+        "name": "prizeToken_",
+        "type": "address"
       }
     ],
     "name": "create",

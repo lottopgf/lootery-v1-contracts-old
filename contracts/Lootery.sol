@@ -6,6 +6,7 @@ import {Sort} from "./lib/Sort.sol";
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {ERC721Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC721/ERC721Upgradeable.sol";
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IRandomiserCallback} from "./interfaces/IRandomiserCallback.sol";
 import {IRNGesusReloaded} from "./interfaces/IRNGesusReloaded.sol";
 
@@ -60,6 +61,8 @@ contract Lootery is
     uint256 public gamePeriod;
     /// @notice Trusted randomiser
     address public randomiser;
+    /// @notice Token used for prizes
+    address public prizeToken;
     /// @notice Ticket price
     uint256 public ticketPrice;
     /// @notice Percentage of ticket price directed to the community
@@ -144,8 +147,9 @@ contract Lootery is
         uint256 gamePeriod_,
         uint256 ticketPrice_,
         uint256 communityFeeBps_,
-        address randomiser_
-    ) public payable initializer {
+        address randomiser_,
+        address prizeToken_
+    ) public initializer {
         __Ownable_init(owner_);
         __ERC721_init(name_, symbol_);
 
@@ -171,12 +175,10 @@ contract Lootery is
         }
         randomiser = randomiser_;
 
-        // Seed the jackpot
-        if (msg.value > type(uint128).max) {
-            revert JackpotOverflow(msg.value);
-        }
+        prizeToken = prizeToken_;
+
         gameData[0] = Game({
-            jackpot: uint128(msg.value),
+            jackpot: 0,
             ticketsSold: 0,
             // The first game starts straight away
             startedAt: uint64(block.timestamp)
@@ -184,16 +186,19 @@ contract Lootery is
     }
 
     /// @notice Seed the jackpot
-    function seedJackpot() external payable {
+    function seedJackpot(uint128 value) external {
         // We allow seeding jackpot during purchase phase only, so we don't
         // have to fuck around with accounting
         if (gameState != GameState.Purchase) {
             revert UnexpectedState(gameState, GameState.Purchase);
         }
-        if (msg.value > type(uint128).max) {
-            revert JackpotOverflow(msg.value);
+        if (value > type(uint128).max) {
+            revert JackpotOverflow(value);
         }
-        gameData[currentGameId].jackpot += uint128(msg.value);
+
+        IERC20(prizeToken).transferFrom(msg.sender, address(this), value);
+
+        gameData[currentGameId].jackpot += uint128(value);
     }
 
     /// @notice Compute the identity of an ordered set of numbers
@@ -209,18 +214,17 @@ contract Lootery is
 
     /// @notice Purchase a ticket
     /// @param tickets Tickets! Tickets!
-    function purchase(Ticket[] calldata tickets) external payable {
+    function purchase(Ticket[] calldata tickets) external {
         uint256 ticketsCount = tickets.length;
         uint256 totalPrice = ticketPrice * ticketsCount;
-        if (msg.value != totalPrice) {
-            revert IncorrectPaymentAmount(msg.value, totalPrice);
-        }
+
+        IERC20(prizeToken).transferFrom(msg.sender, address(this), totalPrice);
 
         uint256 gameId = currentGameId;
 
         // Handle fee splits
-        uint256 communityFeeShare = (msg.value * communityFeeBps) / 10000;
-        uint256 jackpotShare = msg.value - communityFeeShare;
+        uint256 communityFeeShare = (totalPrice * communityFeeBps) / 10000;
+        uint256 jackpotShare = totalPrice - communityFeeShare;
         if (jackpotShare > type(uint128).max) {
             revert JackpotOverflow(jackpotShare);
         }
@@ -419,12 +423,6 @@ contract Lootery is
         revert NoWin(ticketPickId, winningPickId);
     }
 
-    /// @notice Accrued community fees are used for operational activities such
-    ///     as requesting random numbers. Use this function to top it up.
-    function addOperationalFunds() external payable {
-        accruedCommunityFees += msg.value;
-    }
-
     /// @notice Withdraw accrued community fees
     function withdrawAccruedFees() external onlyOwner {
         uint256 totalAccrued = accruedCommunityFees;
@@ -436,10 +434,6 @@ contract Lootery is
     /// @param to Address to transfer to
     /// @param value Value (in wei) to transfer
     function _transferOrBust(address to, uint256 value) internal {
-        (bool success, bytes memory retval) = to.call{value: value}("");
-        if (!success) {
-            revert TransferFailure(to, value, retval);
-        }
-        emit Transferred(to, value);
+        IERC20(prizeToken).transfer(to, value);
     }
 }
