@@ -967,6 +967,31 @@
     "type": "function"
   },
   {
+    "inputs": [
+      {
+        "components": [
+          {
+            "internalType": "address",
+            "name": "whomst",
+            "type": "address"
+          },
+          {
+            "internalType": "uint8[]",
+            "name": "picks",
+            "type": "uint8[]"
+          }
+        ],
+        "internalType": "struct Lootery.Ticket[]",
+        "name": "tickets",
+        "type": "tuple[]"
+      }
+    ],
+    "name": "ownerPick",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
     "inputs": [],
     "name": "prizeToken",
     "outputs": [

@@ -220,8 +220,6 @@ contract Lootery is
 
         IERC20(prizeToken).transferFrom(msg.sender, address(this), totalPrice);
 
-        uint256 gameId = currentGameId;
-
         // Handle fee splits
         uint256 communityFeeShare = (totalPrice * communityFeeBps) / 10000;
         uint256 jackpotShare = totalPrice - communityFeeShare;
@@ -229,51 +227,8 @@ contract Lootery is
             revert JackpotOverflow(jackpotShare);
         }
         accruedCommunityFees += communityFeeShare;
-        Game memory game = gameData[currentGameId];
-        if (uint256(game.ticketsSold) + ticketsCount > type(uint64).max) {
-            revert TicketsSoldOverflow(
-                uint256(game.ticketsSold) + ticketsCount
-            );
-        }
-        gameData[currentGameId] = Game({
-            jackpot: game.jackpot + uint128(jackpotShare),
-            ticketsSold: game.ticketsSold + uint64(ticketsCount),
-            startedAt: game.startedAt
-        });
 
-        address whomst;
-        uint8[] memory picks;
-        uint256 numPicks_ = numPicks;
-        uint256 maxBallValue_ = maxBallValue;
-        uint256 startingTokenId = currentTokenId + 1;
-        currentTokenId += ticketsCount;
-        for (uint256 t; t < ticketsCount; ++t) {
-            whomst = tickets[t].whomst;
-            picks = tickets[t].picks;
-
-            if (picks.length != numPicks_) {
-                revert InvalidNumPicks(picks.length);
-            }
-
-            // Assert picks are ascendingly sorted, with no possibility of duplicates
-            uint8 lastPick;
-            for (uint256 i; i < numPicks_; ++i) {
-                uint8 pick = picks[i];
-                if (pick <= lastPick) revert UnsortedPicks(picks);
-                if (pick > maxBallValue_) revert InvalidBallValue(pick);
-                lastPick = pick;
-            }
-
-            // Record picked numbers
-            uint256 tokenId = startingTokenId + t;
-            uint256 pickId = computePickIdentity(picks);
-            tokenIdToTicket[tokenId] = pickId;
-            _safeMint(whomst, tokenId);
-
-            // Account for this pick set
-            tokenByPickIdentity[gameId][pickId].push(tokenId);
-            emit TicketPurchased(gameId, whomst, tokenId, picks);
-        }
+        _pickTickets(tickets, jackpotShare);
     }
 
     /// @notice Draw numbers, picking potential jackpot winners and ending the
@@ -430,10 +385,68 @@ contract Lootery is
         _transferOrBust(msg.sender, totalAccrued);
     }
 
+    /// @notice Allow owner to pick tickets for free
+    function ownerPick(Ticket[] calldata tickets) external onlyOwner {
+        _pickTickets(tickets, 0);
+    }
+
     /// @notice Transfer via raw call; revert on failure
     /// @param to Address to transfer to
     /// @param value Value (in wei) to transfer
     function _transferOrBust(address to, uint256 value) internal {
         IERC20(prizeToken).transfer(to, value);
+    }
+
+    /// @notice Pick tickets and increase jackpot
+    function _pickTickets(
+        Ticket[] calldata tickets,
+        uint256 jackpotShare
+    ) internal {
+        uint256 ticketsCount = tickets.length;
+        Game memory game = gameData[currentGameId];
+        if (uint256(game.ticketsSold) + ticketsCount > type(uint64).max) {
+            revert TicketsSoldOverflow(
+                uint256(game.ticketsSold) + ticketsCount
+            );
+        }
+        gameData[currentGameId] = Game({
+            jackpot: game.jackpot + uint128(jackpotShare),
+            ticketsSold: game.ticketsSold + uint64(ticketsCount),
+            startedAt: game.startedAt
+        });
+
+        address whomst;
+        uint8[] memory picks;
+        uint256 numPicks_ = numPicks;
+        uint256 maxBallValue_ = maxBallValue;
+        uint256 startingTokenId = currentTokenId + 1;
+        currentTokenId += ticketsCount;
+        for (uint256 t; t < ticketsCount; ++t) {
+            whomst = tickets[t].whomst;
+            picks = tickets[t].picks;
+
+            if (picks.length != numPicks_) {
+                revert InvalidNumPicks(picks.length);
+            }
+
+            // Assert picks are ascendingly sorted, with no possibility of duplicates
+            uint8 lastPick;
+            for (uint256 i; i < numPicks_; ++i) {
+                uint8 pick = picks[i];
+                if (pick <= lastPick) revert UnsortedPicks(picks);
+                if (pick > maxBallValue_) revert InvalidBallValue(pick);
+                lastPick = pick;
+            }
+
+            // Record picked numbers
+            uint256 tokenId = startingTokenId + t;
+            uint256 pickId = computePickIdentity(picks);
+            tokenIdToTicket[tokenId] = pickId;
+            _safeMint(whomst, tokenId);
+
+            // Account for this pick set
+            tokenByPickIdentity[currentGameId][pickId].push(tokenId);
+            emit TicketPurchased(currentGameId, whomst, tokenId, picks);
+        }
     }
 }

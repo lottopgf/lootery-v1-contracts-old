@@ -117,7 +117,7 @@ describe('Lootery', () => {
 
         // Withdraw accrued fees
         const accruedFees = await lotto.accruedCommunityFees()
-        expect(accruedFees).to.eq(parseEther('0.049')) // 0.05 - vrfRequestPrice
+        expect(accruedFees).to.eq(parseEther('0.05'))
         await expect(lotto.withdrawAccruedFees()).to.emit(testERC20, 'Transfer')
         expect(await lotto.accruedCommunityFees()).to.eq(0)
     })
@@ -186,6 +186,32 @@ describe('Lootery', () => {
             await time.increase(gamePeriod)
             await expect(lotto.draw()).to.emit(lotto, 'DrawSkipped').withArgs(gameId)
         }
+    })
+
+    it('should let owner pick tickets for free', async () => {
+        const gamePeriod = 1n * 60n * 60n
+        async function deploy() {
+            return deployLotto({
+                deployer,
+                gamePeriod,
+                prizeToken: testERC20,
+            })
+        }
+        const { lotto } = await loadFixture(deploy)
+
+        const whomst = bob.address
+        const picks = [1, 2, 3, 4, 5]
+
+        await expect(
+            lotto.ownerPick([
+                {
+                    whomst,
+                    picks,
+                },
+            ]),
+        )
+            .to.emit(lotto, 'TicketPurchased')
+            .withArgs(0, whomst, 1, picks)
     })
 })
 
