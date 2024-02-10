@@ -396,6 +396,19 @@ contract Lootery is
         _pickTickets(tickets, 0);
     }
 
+    /// @notice Allow owner to rescue any tokens sent to the contract; excluding jackpot and accrued fees
+    function rescueTokens(address tokenAddress) external onlyOwner {
+        uint256 amount = IERC20(tokenAddress).balanceOf(address(this));
+        if (tokenAddress == prizeToken) {
+            amount =
+                amount -
+                accruedCommunityFees -
+                gameData[currentGameId].jackpot;
+        }
+
+        IERC20(tokenAddress).transfer(msg.sender, amount);
+    }
+
     /// @notice Transfer via raw call; revert on failure
     /// @param to Address to transfer to
     /// @param value Value (in wei) to transfer

@@ -222,6 +222,34 @@ describe('Lootery', () => {
             .to.emit(lotto, 'TicketPurchased')
             .withArgs(0, whomst, 1, picks)
     })
+
+    it('should let owner rescue tokens', async () => {
+        const gamePeriod = 1n * 60n * 60n
+        async function deploy() {
+            return deployLotto({
+                deployer,
+                gamePeriod,
+                prizeToken: testERC20,
+            })
+        }
+        const { lotto } = await loadFixture(deploy)
+
+        const lottoAddress = await lotto.getAddress()
+
+        await testERC20.mint(deployer, parseEther('10'))
+        await testERC20.approve(lotto, parseEther('10'))
+
+        await purchaseTicket(lotto, bob.address, [1, 2, 3, 4, 5])
+
+        await testERC20.mint(lotto, parseEther('10'))
+
+        // Jackpot + 1 ticket + 10 extra tokens
+        expect(await testERC20.balanceOf(lotto)).to.eq(parseEther('20.1'))
+
+        expect(await lotto.rescueTokens(await testERC20.getAddress()))
+            .to.emit(testERC20, 'Transfer')
+            .withArgs(lottoAddress, deployer.address, parseEther('10'))
+    })
 })
 
 function keccak(balls: bigint[]) {
