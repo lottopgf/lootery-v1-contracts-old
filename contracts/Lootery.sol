@@ -7,6 +7,7 @@ import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Ini
 import {ERC721Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC721/ERC721Upgradeable.sol";
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IRandomiserCallback} from "./interfaces/IRandomiserCallback.sol";
 import {IRNGesusReloaded} from "./interfaces/IRNGesusReloaded.sol";
 
@@ -19,6 +20,7 @@ contract Lootery is
     ERC721Upgradeable
 {
     using Sort for uint8[];
+    using SafeERC20 for IERC20;
 
     /// @notice Current state of the lootery
     enum GameState {
