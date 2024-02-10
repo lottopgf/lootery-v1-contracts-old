@@ -272,13 +272,12 @@ contract Lootery is
         uint256 requestPrice = IRNGesusReloaded(randomiser).getRequestPrice(
             500_000
         );
-        if (accruedCommunityFees < requestPrice) {
+        if (address(this).balance < requestPrice) {
             revert InsufficientOperationalFunds(
                 accruedCommunityFees,
                 requestPrice
             );
         }
-        accruedCommunityFees -= requestPrice;
         // VRF call
         uint256 requestId = IRNGesusReloaded(randomiser).requestRandomness{
             value: requestPrice
