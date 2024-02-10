@@ -132,6 +132,7 @@ contract Lootery is
     error JackpotOverflow(uint256 value);
     error TicketsSoldOverflow(uint256 value);
     error InsufficientOperationalFunds(uint256 have, uint256 want);
+    error ClaimWindowMissed(uint256 tokenId);
 
     constructor() {
         _disableInitializers();
@@ -332,7 +333,13 @@ contract Lootery is
 
         // Ready for next game
         gameState = GameState.Purchase;
-        gameData[gameId + 1].startedAt = uint64(block.timestamp);
+
+        // Set up next game; roll over jackpot
+        gameData[gameId + 1] = Game({
+            jackpot: gameData[gameId].jackpot,
+            ticketsSold: 0,
+            startedAt: uint64(block.timestamp)
+        });
     }
 
     /// @notice Claim a share of the jackpot with a winning ticket
@@ -345,8 +352,13 @@ contract Lootery is
         // Burning the token is our "claim nullifier"
         _burn(tokenId);
 
-        // Check winning balls from game
         uint256 gameId = tokenIdToGameId[tokenId];
+        // Can only claim winnings from the last game
+        if (gameId != currentGameId - 1) {
+            revert ClaimWindowMissed(tokenId);
+        }
+
+        // Check winning balls from game
         uint256 winningPickId = winningPickIds[gameId];
         uint256 ticketPickId = tokenIdToTicket[tokenId];
 
@@ -354,15 +366,6 @@ contract Lootery is
         Game memory game = gameData[gameId];
         uint256 jackpot = game.jackpot;
         uint256 numWinners = tokenByPickIdentity[gameId][winningPickId].length;
-        if (numWinners == 0) {
-            // No jackpot winners!
-            // Jackpot is shared between all tickets
-            // Invariant: `ticketsSold[gameId] > 0`
-            uint256 prizeShare = jackpot / gameData[gameId].ticketsSold;
-            _transferOrBust(whomst, prizeShare);
-            emit ConsolationClaimed(tokenId, gameId, whomst, prizeShare);
-            return;
-        }
 
         if (winningPickId == ticketPickId) {
             // This ticket did have the winning numbers
@@ -370,6 +373,10 @@ contract Lootery is
             // NB: `numWinners` != 0 in this path
             uint256 prizeShare = jackpot / numWinners;
             _transferOrBust(whomst, prizeShare);
+
+            // Decrease current games jackpot by the claimed amount
+            gameData[currentGameId].jackpot -= uint128(prizeShare);
+
             emit WinningsClaimed(tokenId, gameId, whomst, prizeShare);
             return;
         }

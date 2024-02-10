@@ -122,7 +122,7 @@ describe('Lootery', () => {
         expect(await lotto.accruedCommunityFees()).to.eq(0)
     })
 
-    it('should let participants claim equal share if nobody won', async () => {
+    it('should rollover jackpot to next round if noone has won', async () => {
         const gamePeriod = 1n * 60n * 60n
         async function deploy() {
             return deployLotto({
@@ -136,28 +136,37 @@ describe('Lootery', () => {
         await testERC20.mint(deployer, parseEther('10'))
         await testERC20.approve(lotto, parseEther('10'))
 
-        const { tokenId: bobTokenId } = await purchaseTicket(lotto, bob.address, [1, 2, 3, 4, 5])
-        const { tokenId: aliceTokenId } = await purchaseTicket(
+        const winningTicket = [3n, 11n, 22n, 29n, 42n]
+
+        const { tokenId: bobTokenId } = await purchaseTicket(lotto, bob.address, winningTicket)
+        const { tokenId: aliceTokenId } = await purchaseTicket(lotto, alice.address, winningTicket)
+
+        await fastForwardAndDraw(6942069420n)
+
+        // Current jackpot + 2 tickets
+        expect((await lotto.gameData(1)).jackpot).to.be.eq(parseEther('10.1'))
+
+        // Alice claims prize
+        await lotto.claimWinnings(aliceTokenId)
+
+        // Current jackpot is reduced
+        expect((await lotto.gameData(1)).jackpot).to.be.eq(parseEther('5.05'))
+
+        // Balance is half of jackpot + 2 tickets
+        expect(await testERC20.balanceOf(lotto)).to.be.eq(parseEther('5.15'))
+
+        // Advance 1 round
+        await time.increase(gamePeriod)
+        await lotto.draw()
+
+        // Half of round 1 jackpot
+        expect((await lotto.gameData(2)).jackpot).to.be.eq(parseEther('5.05'))
+
+        // Bob can't claim anymore
+        await expect(lotto.claimWinnings(bobTokenId)).to.be.revertedWithCustomError(
             lotto,
-            alice.address,
-            [1, 2, 3, 4, 6],
+            'ClaimWindowMissed',
         )
-        const gameId = await lotto.tokenIdToGameId(bobTokenId)
-
-        await fastForwardAndDraw(6942069320n)
-
-        const { jackpot } = await lotto.gameData(gameId)
-        const prizeShare = jackpot / 2n
-        const bobBalanceBefore = await testERC20.balanceOf(bob.address)
-        expect(await lotto.claimWinnings(bobTokenId))
-            .to.emit(lotto, 'ConsolationClaimed')
-            .withArgs(bobTokenId, gameId, bob.address, prizeShare)
-        expect(await testERC20.balanceOf(bob.address)).to.eq(bobBalanceBefore + prizeShare)
-        const aliceBalanceBefore = await testERC20.balanceOf(alice.address)
-        expect(await lotto.claimWinnings(aliceTokenId))
-            .to.emit(lotto, 'ConsolationClaimed')
-            .withArgs(aliceTokenId, gameId, bob.address, prizeShare)
-        expect(await testERC20.balanceOf(alice.address)).to.eq(aliceBalanceBefore + prizeShare)
     })
 
     it('should run games continuously, as long as gamePeriod has elapsed', async () => {
