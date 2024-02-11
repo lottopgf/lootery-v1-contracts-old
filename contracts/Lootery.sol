@@ -195,13 +195,10 @@ contract Lootery is
         if (gameState != GameState.Purchase) {
             revert UnexpectedState(gameState, GameState.Purchase);
         }
-        if (value > type(uint128).max) {
-            revert JackpotOverflow(value);
-        }
 
-        IERC20(prizeToken).transferFrom(msg.sender, address(this), value);
+        IERC20(prizeToken).safeTransferFrom(msg.sender, address(this), value);
 
-        gameData[currentGameId].jackpot += uint128(value);
+        gameData[currentGameId].jackpot += value;
     }
 
     /// @notice Compute the identity of an ordered set of numbers
@@ -221,7 +218,11 @@ contract Lootery is
         uint256 ticketsCount = tickets.length;
         uint256 totalPrice = ticketPrice * ticketsCount;
 
-        IERC20(prizeToken).transferFrom(msg.sender, address(this), totalPrice);
+        IERC20(prizeToken).safeTransferFrom(
+            msg.sender,
+            address(this),
+            totalPrice
+        );
 
         // Handle fee splits
         uint256 communityFeeShare = (totalPrice * communityFeeBps) / 10000;
@@ -408,7 +409,7 @@ contract Lootery is
                 gameData[currentGameId].jackpot;
         }
 
-        IERC20(tokenAddress).transfer(msg.sender, amount);
+        IERC20(tokenAddress).safeTransfer(msg.sender, amount);
     }
 
     /// @notice Transfer via raw call; revert on failure
