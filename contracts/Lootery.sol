@@ -6,6 +6,8 @@ import {Sort} from "./lib/Sort.sol";
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {ERC721Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC721/ERC721Upgradeable.sol";
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IRandomiserCallback} from "./interfaces/IRandomiserCallback.sol";
 import {IRNGesusReloaded} from "./interfaces/IRNGesusReloaded.sol";
 
@@ -18,6 +20,7 @@ contract Lootery is
     ERC721Upgradeable
 {
     using Sort for uint8[];
+    using SafeERC20 for IERC20;
 
     /// @notice Current state of the lootery
     enum GameState {
@@ -60,6 +63,8 @@ contract Lootery is
     uint256 public gamePeriod;
     /// @notice Trusted randomiser
     address public randomiser;
+    /// @notice Token used for prizes
+    address public prizeToken;
     /// @notice Ticket price
     uint256 public ticketPrice;
     /// @notice Percentage of ticket price directed to the community
@@ -108,6 +113,7 @@ contract Lootery is
         uint256 value
     );
     event DrawSkipped(uint256 indexed gameId);
+    event Received(address sender, uint256 amount);
 
     error TransferFailure(address to, uint256 value, bytes reason);
     error InvalidNumPicks(uint256 numPicks);
@@ -129,6 +135,7 @@ contract Lootery is
     error JackpotOverflow(uint256 value);
     error TicketsSoldOverflow(uint256 value);
     error InsufficientOperationalFunds(uint256 have, uint256 want);
+    error ClaimWindowMissed(uint256 tokenId);
 
     constructor() {
         _disableInitializers();
@@ -144,8 +151,9 @@ contract Lootery is
         uint256 gamePeriod_,
         uint256 ticketPrice_,
         uint256 communityFeeBps_,
-        address randomiser_
-    ) public payable initializer {
+        address randomiser_,
+        address prizeToken_
+    ) public initializer {
         __Ownable_init(owner_);
         __ERC721_init(name_, symbol_);
 
@@ -171,12 +179,10 @@ contract Lootery is
         }
         randomiser = randomiser_;
 
-        // Seed the jackpot
-        if (msg.value > type(uint128).max) {
-            revert JackpotOverflow(msg.value);
-        }
+        prizeToken = prizeToken_;
+
         gameData[0] = Game({
-            jackpot: uint128(msg.value),
+            jackpot: 0,
             ticketsSold: 0,
             // The first game starts straight away
             startedAt: uint64(block.timestamp)
@@ -184,16 +190,16 @@ contract Lootery is
     }
 
     /// @notice Seed the jackpot
-    function seedJackpot() external payable {
+    function seedJackpot(uint128 value) external {
         // We allow seeding jackpot during purchase phase only, so we don't
         // have to fuck around with accounting
         if (gameState != GameState.Purchase) {
             revert UnexpectedState(gameState, GameState.Purchase);
         }
-        if (msg.value > type(uint128).max) {
-            revert JackpotOverflow(msg.value);
-        }
-        gameData[currentGameId].jackpot += uint128(msg.value);
+
+        IERC20(prizeToken).safeTransferFrom(msg.sender, address(this), value);
+
+        gameData[currentGameId].jackpot += value;
     }
 
     /// @notice Compute the identity of an ordered set of numbers
@@ -209,67 +215,25 @@ contract Lootery is
 
     /// @notice Purchase a ticket
     /// @param tickets Tickets! Tickets!
-    function purchase(Ticket[] calldata tickets) external payable {
+    function purchase(Ticket[] calldata tickets) external {
         uint256 ticketsCount = tickets.length;
         uint256 totalPrice = ticketPrice * ticketsCount;
-        if (msg.value != totalPrice) {
-            revert IncorrectPaymentAmount(msg.value, totalPrice);
-        }
 
-        uint256 gameId = currentGameId;
+        IERC20(prizeToken).safeTransferFrom(
+            msg.sender,
+            address(this),
+            totalPrice
+        );
 
         // Handle fee splits
-        uint256 communityFeeShare = (msg.value * communityFeeBps) / 10000;
-        uint256 jackpotShare = msg.value - communityFeeShare;
+        uint256 communityFeeShare = (totalPrice * communityFeeBps) / 10000;
+        uint256 jackpotShare = totalPrice - communityFeeShare;
         if (jackpotShare > type(uint128).max) {
             revert JackpotOverflow(jackpotShare);
         }
         accruedCommunityFees += communityFeeShare;
-        Game memory game = gameData[currentGameId];
-        if (uint256(game.ticketsSold) + ticketsCount > type(uint64).max) {
-            revert TicketsSoldOverflow(
-                uint256(game.ticketsSold) + ticketsCount
-            );
-        }
-        gameData[currentGameId] = Game({
-            jackpot: game.jackpot + uint128(jackpotShare),
-            ticketsSold: game.ticketsSold + uint64(ticketsCount),
-            startedAt: game.startedAt
-        });
 
-        address whomst;
-        uint8[] memory picks;
-        uint256 numPicks_ = numPicks;
-        uint256 maxBallValue_ = maxBallValue;
-        uint256 startingTokenId = currentTokenId + 1;
-        currentTokenId += ticketsCount;
-        for (uint256 t; t < ticketsCount; ++t) {
-            whomst = tickets[t].whomst;
-            picks = tickets[t].picks;
-
-            if (picks.length != numPicks_) {
-                revert InvalidNumPicks(picks.length);
-            }
-
-            // Assert picks are ascendingly sorted, with no possibility of duplicates
-            uint8 lastPick;
-            for (uint256 i; i < numPicks_; ++i) {
-                uint8 pick = picks[i];
-                if (pick <= lastPick) revert UnsortedPicks(picks);
-                if (pick > maxBallValue_) revert InvalidBallValue(pick);
-                lastPick = pick;
-            }
-
-            // Record picked numbers
-            uint256 tokenId = startingTokenId + t;
-            uint256 pickId = computePickIdentity(picks);
-            tokenIdToTicket[tokenId] = pickId;
-            _safeMint(whomst, tokenId);
-
-            // Account for this pick set
-            tokenByPickIdentity[gameId][pickId].push(tokenId);
-            emit TicketPurchased(gameId, whomst, tokenId, picks);
-        }
+        _pickTickets(tickets, jackpotShare);
     }
 
     /// @notice Draw numbers, picking potential jackpot winners and ending the
@@ -313,13 +277,12 @@ contract Lootery is
         uint256 requestPrice = IRNGesusReloaded(randomiser).getRequestPrice(
             500_000
         );
-        if (accruedCommunityFees < requestPrice) {
+        if (address(this).balance < requestPrice) {
             revert InsufficientOperationalFunds(
                 accruedCommunityFees,
                 requestPrice
             );
         }
-        accruedCommunityFees -= requestPrice;
         // VRF call
         uint256 requestId = IRNGesusReloaded(randomiser).requestRandomness{
             value: requestPrice
@@ -374,7 +337,13 @@ contract Lootery is
 
         // Ready for next game
         gameState = GameState.Purchase;
-        gameData[gameId + 1].startedAt = uint64(block.timestamp);
+
+        // Set up next game; roll over jackpot
+        gameData[gameId + 1] = Game({
+            jackpot: gameData[gameId].jackpot,
+            ticketsSold: 0,
+            startedAt: uint64(block.timestamp)
+        });
     }
 
     /// @notice Claim a share of the jackpot with a winning ticket
@@ -387,8 +356,13 @@ contract Lootery is
         // Burning the token is our "claim nullifier"
         _burn(tokenId);
 
-        // Check winning balls from game
         uint256 gameId = tokenIdToGameId[tokenId];
+        // Can only claim winnings from the last game
+        if (gameId != currentGameId - 1) {
+            revert ClaimWindowMissed(tokenId);
+        }
+
+        // Check winning balls from game
         uint256 winningPickId = winningPickIds[gameId];
         uint256 ticketPickId = tokenIdToTicket[tokenId];
 
@@ -396,15 +370,6 @@ contract Lootery is
         Game memory game = gameData[gameId];
         uint256 jackpot = game.jackpot;
         uint256 numWinners = tokenByPickIdentity[gameId][winningPickId].length;
-        if (numWinners == 0) {
-            // No jackpot winners!
-            // Jackpot is shared between all tickets
-            // Invariant: `ticketsSold[gameId] > 0`
-            uint256 prizeShare = jackpot / gameData[gameId].ticketsSold;
-            _transferOrBust(whomst, prizeShare);
-            emit ConsolationClaimed(tokenId, gameId, whomst, prizeShare);
-            return;
-        }
 
         if (winningPickId == ticketPickId) {
             // This ticket did have the winning numbers
@@ -412,17 +377,15 @@ contract Lootery is
             // NB: `numWinners` != 0 in this path
             uint256 prizeShare = jackpot / numWinners;
             _transferOrBust(whomst, prizeShare);
+
+            // Decrease current games jackpot by the claimed amount
+            gameData[currentGameId].jackpot -= uint128(prizeShare);
+
             emit WinningsClaimed(tokenId, gameId, whomst, prizeShare);
             return;
         }
 
         revert NoWin(ticketPickId, winningPickId);
-    }
-
-    /// @notice Accrued community fees are used for operational activities such
-    ///     as requesting random numbers. Use this function to top it up.
-    function addOperationalFunds() external payable {
-        accruedCommunityFees += msg.value;
     }
 
     /// @notice Withdraw accrued community fees
@@ -432,14 +395,92 @@ contract Lootery is
         _transferOrBust(msg.sender, totalAccrued);
     }
 
+    /// @notice Allow owner to pick tickets for free
+    function ownerPick(Ticket[] calldata tickets) external onlyOwner {
+        _pickTickets(tickets, 0);
+    }
+
+    function rescueETH() external onlyOwner {
+        (bool success, bytes memory data) = msg.sender.call{
+            value: address(this).balance
+        }("");
+        require(success, "Failed to send Ether");
+    }
+
+    /// @notice Allow owner to rescue any tokens sent to the contract; excluding jackpot and accrued fees
+    function rescueTokens(address tokenAddress) external onlyOwner {
+        uint256 amount = IERC20(tokenAddress).balanceOf(address(this));
+        if (tokenAddress == prizeToken) {
+            amount =
+                amount -
+                accruedCommunityFees -
+                gameData[currentGameId].jackpot;
+        }
+
+        IERC20(tokenAddress).safeTransfer(msg.sender, amount);
+    }
+
     /// @notice Transfer via raw call; revert on failure
     /// @param to Address to transfer to
     /// @param value Value (in wei) to transfer
     function _transferOrBust(address to, uint256 value) internal {
-        (bool success, bytes memory retval) = to.call{value: value}("");
-        if (!success) {
-            revert TransferFailure(to, value, retval);
+        IERC20(prizeToken).transfer(to, value);
+    }
+
+    /// @notice Pick tickets and increase jackpot
+    function _pickTickets(
+        Ticket[] calldata tickets,
+        uint256 jackpotShare
+    ) internal {
+        uint256 ticketsCount = tickets.length;
+        Game memory game = gameData[currentGameId];
+        if (uint256(game.ticketsSold) + ticketsCount > type(uint64).max) {
+            revert TicketsSoldOverflow(
+                uint256(game.ticketsSold) + ticketsCount
+            );
         }
-        emit Transferred(to, value);
+        gameData[currentGameId] = Game({
+            jackpot: game.jackpot + uint128(jackpotShare),
+            ticketsSold: game.ticketsSold + uint64(ticketsCount),
+            startedAt: game.startedAt
+        });
+
+        address whomst;
+        uint8[] memory picks;
+        uint256 numPicks_ = numPicks;
+        uint256 maxBallValue_ = maxBallValue;
+        uint256 startingTokenId = currentTokenId + 1;
+        currentTokenId += ticketsCount;
+        for (uint256 t; t < ticketsCount; ++t) {
+            whomst = tickets[t].whomst;
+            picks = tickets[t].picks;
+
+            if (picks.length != numPicks_) {
+                revert InvalidNumPicks(picks.length);
+            }
+
+            // Assert picks are ascendingly sorted, with no possibility of duplicates
+            uint8 lastPick;
+            for (uint256 i; i < numPicks_; ++i) {
+                uint8 pick = picks[i];
+                if (pick <= lastPick) revert UnsortedPicks(picks);
+                if (pick > maxBallValue_) revert InvalidBallValue(pick);
+                lastPick = pick;
+            }
+
+            // Record picked numbers
+            uint256 tokenId = startingTokenId + t;
+            uint256 pickId = computePickIdentity(picks);
+            tokenIdToTicket[tokenId] = pickId;
+            _safeMint(whomst, tokenId);
+
+            // Account for this pick set
+            tokenByPickIdentity[currentGameId][pickId].push(tokenId);
+            emit TicketPurchased(currentGameId, whomst, tokenId, picks);
+        }
+    }
+
+    receive() external payable {
+        emit Received(msg.sender, msg.value);
     }
 }

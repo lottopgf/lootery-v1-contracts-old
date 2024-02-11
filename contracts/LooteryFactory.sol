@@ -101,7 +101,8 @@ contract LooteryFactory is UUPSUpgradeable, AccessControlUpgradeable {
         uint8 maxBallValue_,
         uint256 gamePeriod_,
         uint256 ticketPrice_,
-        uint256 communityFeeBps_
+        uint256 communityFeeBps_,
+        address prizeToken_
     ) external returns (address) {
         uint256 nonce = NONCE_SLOT.getUint256Slot().value++;
         bytes32 salt = computeSalt(nonce);
@@ -109,9 +110,8 @@ contract LooteryFactory is UUPSUpgradeable, AccessControlUpgradeable {
             .getAddressSlot()
             .value;
         // Deploy & init proxy
-        address looteryProxy = Clones.cloneDeterministic(
-            looteryMasterCopy,
-            salt
+        address payable looteryProxy = payable(
+            Clones.cloneDeterministic(looteryMasterCopy, salt)
         );
         Lootery(looteryProxy).init(
             msg.sender,
@@ -122,7 +122,8 @@ contract LooteryFactory is UUPSUpgradeable, AccessControlUpgradeable {
             gamePeriod_,
             ticketPrice_,
             communityFeeBps_,
-            RANDOMISER_SLOT.getAddressSlot().value
+            RANDOMISER_SLOT.getAddressSlot().value,
+            prizeToken_
         );
         emit LooteryLaunched(
             looteryProxy,
