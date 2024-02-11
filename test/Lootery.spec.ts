@@ -250,6 +250,28 @@ describe('Lootery', () => {
             .to.emit(testERC20, 'Transfer')
             .withArgs(lottoAddress, deployer.address, parseEther('10'))
     })
+
+    it('should let owner rescue eth', async () => {
+        const gamePeriod = 1n * 60n * 60n
+        async function deploy() {
+            return deployLotto({
+                deployer,
+                gamePeriod,
+                prizeToken: testERC20,
+            })
+        }
+        const { lotto } = await loadFixture(deploy)
+
+        await deployer.sendTransaction({
+            to: lotto,
+            value: parseEther('10'),
+        })
+
+        await expect(lotto.rescueETH()).to.changeEtherBalances(
+            [lotto, deployer],
+            [parseEther('-10'), parseEther('10')],
+        )
+    })
 })
 
 function keccak(balls: bigint[]) {

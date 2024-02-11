@@ -110,9 +110,8 @@ contract LooteryFactory is UUPSUpgradeable, AccessControlUpgradeable {
             .getAddressSlot()
             .value;
         // Deploy & init proxy
-        address looteryProxy = Clones.cloneDeterministic(
-            looteryMasterCopy,
-            salt
+        address payable looteryProxy = payable(
+            Clones.cloneDeterministic(looteryMasterCopy, salt)
         );
         Lootery(looteryProxy).init(
             msg.sender,

@@ -113,6 +113,7 @@ contract Lootery is
         uint256 value
     );
     event DrawSkipped(uint256 indexed gameId);
+    event Received(address sender, uint256 amount);
 
     error TransferFailure(address to, uint256 value, bytes reason);
     error InvalidNumPicks(uint256 numPicks);
@@ -399,6 +400,13 @@ contract Lootery is
         _pickTickets(tickets, 0);
     }
 
+    function rescueETH() external onlyOwner {
+        (bool success, bytes memory data) = msg.sender.call{
+            value: address(this).balance
+        }("");
+        require(success, "Failed to send Ether");
+    }
+
     /// @notice Allow owner to rescue any tokens sent to the contract; excluding jackpot and accrued fees
     function rescueTokens(address tokenAddress) external onlyOwner {
         uint256 amount = IERC20(tokenAddress).balanceOf(address(this));
@@ -470,5 +478,9 @@ contract Lootery is
             tokenByPickIdentity[currentGameId][pickId].push(tokenId);
             emit TicketPurchased(currentGameId, whomst, tokenId, picks);
         }
+    }
+
+    receive() external payable {
+        emit Received(msg.sender, msg.value);
     }
 }
