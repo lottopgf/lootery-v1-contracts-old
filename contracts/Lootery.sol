@@ -486,4 +486,12 @@ contract Lootery is
     receive() external payable {
         emit Received(msg.sender, msg.value);
     }
+
+    function tokenURI(
+        uint256 tokenId
+    ) public view override returns (string memory) {
+        _requireOwned(tokenId);
+        return
+            "ipfs://bafkreice6o7ptnfe5fljfher65lmcvscc634iehybmxafwv7hkrkyktmem";
+    }
 }
