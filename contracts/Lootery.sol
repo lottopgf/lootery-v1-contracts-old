@@ -114,6 +114,7 @@ contract Lootery is
     );
     event DrawSkipped(uint256 indexed gameId);
     event Received(address sender, uint256 amount);
+    event JackpotSeeded(address indexed whomst, uint256 amount);
 
     error TransferFailure(address to, uint256 value, bytes reason);
     error InvalidNumPicks(uint256 numPicks);
@@ -197,9 +198,9 @@ contract Lootery is
             revert UnexpectedState(gameState, GameState.Purchase);
         }
 
-        IERC20(prizeToken).safeTransferFrom(msg.sender, address(this), value);
-
         gameData[currentGameId].jackpot += value;
+        IERC20(prizeToken).safeTransferFrom(msg.sender, address(this), value);
+        emit JackpotSeeded(msg.sender, value);
     }
 
     /// @notice Compute the identity of an ordered set of numbers
