@@ -5,7 +5,8 @@ import {
     Lootery__factory,
 } from '../typechain-types'
 
-const RNGESUS_ADDRESS = '0xd0e5895353BB4445E5B06935B2ACc1D427C24529' /** scroll sepolia */
+const RNGESUS_ADDRESS =
+    '0xFBF562a98aB8584178efDcFd09755FF9A1e7E3a2' /** base mainnet; drand on BN254 v1 (old) */
 
 async function main() {
     const [deployer] = await ethers.getSigners()
