@@ -70,7 +70,45 @@ describe('Lootery', () => {
         await lotto.seedJackpot(parseEther('10'))
         expect(await testERC20.balanceOf(lotto)).to.eq(parseEther('10'))
 
-        const gameId = await lotto.currentGameId()
+        // Bob purchases a losing ticket for 0.1
+        await testERC20.mint(bob, parseEther('0.1'))
+        await testERC20.connect(bob).approve(lotto, parseEther('0.1'))
+
+        const losingTicket = [3n, 11n, 22n, 29n, 42n]
+        await lotto.connect(bob).purchase([
+            {
+                whomst: bob.address,
+                picks: losingTicket,
+            },
+        ])
+        // Bob receives NFT ticket
+        expect(await lotto.balanceOf(bob.address)).to.eq(1)
+        expect(await lotto.ownerOf(1)).to.eq(bob.address)
+
+        // Draw
+        await time.increase(gamePeriod)
+        await setBalance(await lotto.getAddress(), parseEther('0.1'))
+        await lotto.draw()
+        let { requestId } = await lotto.randomnessRequest()
+        expect(requestId).to.not.eq(0n)
+
+        // Fulfill w/ mock randomiser (no winners)
+        let fulfilmentTx = await mockRandomiser
+            .fulfillRandomWords(requestId, [6942069421])
+            .then((tx) => tx.wait(1))
+        let [emittedGameId, emittedBalls] = lotto.interface.decodeEventLog(
+            'GameFinalised',
+            fulfilmentTx?.logs?.[0].data!,
+            fulfilmentTx?.logs?.[0].topics,
+        ) as unknown as [bigint, bigint[]]
+        expect(emittedGameId).to.eq(0)
+        expect(emittedBalls).to.deep.eq([1n, 3n, 32n, 53n, 69n])
+        expect(await lotto.winningPickIds(emittedGameId)).to.eq(keccak(emittedBalls))
+
+        // Check that jackpot rolled over to next game
+        expect(await lotto.currentGameId()).to.eq(1)
+        let { jackpot } = await lotto.gameData(1)
+        expect(jackpot).to.eq(parseEther('10.05'))
 
         // Bob purchases a winning ticket for 0.1
         await testERC20.mint(bob, parseEther('0.1'))
@@ -84,40 +122,39 @@ describe('Lootery', () => {
             },
         ])
         // Bob receives NFT ticket
-        expect(await lotto.balanceOf(bob.address)).to.eq(1)
-        const ticketTokenId = 1
-        expect(await lotto.ownerOf(ticketTokenId)).to.eq(bob.address)
+        expect(await lotto.balanceOf(bob.address)).to.eq(2)
+        expect(await lotto.ownerOf(2)).to.eq(bob.address)
 
-        // Draw
+        // Draw again
         await time.increase(gamePeriod)
         await setBalance(await lotto.getAddress(), parseEther('0.1'))
         await lotto.draw()
-        const { requestId } = await lotto.randomnessRequest()
+        ;({ requestId } = await lotto.randomnessRequest())
         expect(requestId).to.not.eq(0n)
 
-        // Fulfill w/ mock randomiser
-        const fulfilmentTx = await mockRandomiser
+        // Fulfill w/ mock randomiser (Bob wins)
+        fulfilmentTx = await mockRandomiser
             .fulfillRandomWords(requestId, [6942069420])
             .then((tx) => tx.wait(1))
-        const [emittedGameId, emittedBalls] = lotto.interface.decodeEventLog(
+        ;[emittedGameId, emittedBalls] = lotto.interface.decodeEventLog(
             'GameFinalised',
             fulfilmentTx?.logs?.[0].data!,
             fulfilmentTx?.logs?.[0].topics,
         ) as unknown as [bigint, bigint[]]
-        expect(emittedGameId).to.eq(0)
+        expect(emittedGameId).to.eq(1)
         expect(emittedBalls).to.deep.eq(winningTicket)
         expect(await lotto.winningPickIds(emittedGameId)).to.eq(keccak(emittedBalls))
 
         // Bob claims entire pot
-        const jackpot = await lotto.gameData(gameId).then((data) => data.jackpot)
-        expect(jackpot).to.eq(parseEther('10.05'))
+        jackpot = await lotto.gameData(await lotto.currentGameId()).then((data) => data.jackpot)
+        expect(jackpot).to.eq(parseEther('10.1'))
         const balanceBefore = await testERC20.balanceOf(bob.address)
-        await lotto.claimWinnings(ticketTokenId)
+        await lotto.claimWinnings(2) // winning ticket tokenId=2
         expect(await testERC20.balanceOf(bob.address)).to.eq(balanceBefore + jackpot)
 
         // Withdraw accrued fees
         const accruedFees = await lotto.accruedCommunityFees()
-        expect(accruedFees).to.eq(parseEther('0.05'))
+        expect(accruedFees).to.eq(parseEther('0.1'))
         await expect(lotto.withdrawAccruedFees()).to.emit(testERC20, 'Transfer')
         expect(await lotto.accruedCommunityFees()).to.eq(0)
     })

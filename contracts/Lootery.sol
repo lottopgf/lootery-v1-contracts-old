@@ -434,13 +434,14 @@ contract Lootery is
         uint256 jackpotShare
     ) internal {
         uint256 ticketsCount = tickets.length;
-        Game memory game = gameData[currentGameId];
+        uint256 currentGameId_ = currentGameId;
+        Game memory game = gameData[currentGameId_];
         if (uint256(game.ticketsSold) + ticketsCount > type(uint64).max) {
             revert TicketsSoldOverflow(
                 uint256(game.ticketsSold) + ticketsCount
             );
         }
-        gameData[currentGameId] = Game({
+        gameData[currentGameId_] = Game({
             jackpot: game.jackpot + uint128(jackpotShare),
             ticketsSold: game.ticketsSold + uint64(ticketsCount),
             startedAt: game.startedAt
@@ -473,11 +474,12 @@ contract Lootery is
             uint256 tokenId = startingTokenId + t;
             uint256 pickId = computePickIdentity(picks);
             tokenIdToTicket[tokenId] = pickId;
+            tokenIdToGameId[tokenId] = currentGameId_;
             _safeMint(whomst, tokenId);
 
             // Account for this pick set
-            tokenByPickIdentity[currentGameId][pickId].push(tokenId);
-            emit TicketPurchased(currentGameId, whomst, tokenId, picks);
+            tokenByPickIdentity[currentGameId_][pickId].push(tokenId);
+            emit TicketPurchased(currentGameId_, whomst, tokenId, picks);
         }
     }
 
