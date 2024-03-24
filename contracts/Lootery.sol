@@ -434,7 +434,7 @@ contract Lootery is
     /// @param to Address to transfer to
     /// @param value Value (in wei) to transfer
     function _transferOrBust(address to, uint256 value) internal {
-        IERC20(prizeToken).transfer(to, value);
+        IERC20(prizeToken).safeTransfer(to, value);
     }
 
     /// @notice Pick tickets and increase jackpot
