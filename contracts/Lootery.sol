@@ -30,6 +30,13 @@ contract Lootery is
         DrawPending
     }
 
+    struct CurrentGame {
+        /// @notice aka uint8
+        GameState state;
+        /// @notice current gameId
+        uint248 id;
+    }
+
     /// @notice A ticket to be purchased
     struct Ticket {
         /// @notice For whomst shall this purchase be made out
@@ -46,6 +53,8 @@ contract Lootery is
         uint64 ticketsSold;
         /// @notice Timestamp of when the game started
         uint64 startedAt;
+        /// @notice Winning pick identity, once it's been drawn
+        uint256 winningPickId;
     }
 
     /// @notice An already-purchased ticket, assigned to a tokenId
@@ -80,14 +89,10 @@ contract Lootery is
 
     /// @dev Current token id
     uint256 private currentTokenId;
-    /// @notice State of the game
-    GameState public gameState;
-    /// @notice Monotonically increasing game id
-    uint256 public currentGameId;
+    /// @notice Current state of the game
+    CurrentGame public currentGame;
     /// @notice Current random request details
     RandomnessRequest public randomnessRequest;
-    /// @notice Winning pick identities per game, once they've been drawn
-    mapping(uint256 gameId => uint256) public winningPickIds;
     /// @notice token id => purchased ticked details (gameId, pickId)
     mapping(uint256 tokenId => PurchasedTicket) public purchasedTickets;
     /// @notice Game data
@@ -192,7 +197,8 @@ contract Lootery is
             jackpot: 0,
             ticketsSold: 0,
             // The first game starts straight away
-            startedAt: uint64(block.timestamp)
+            startedAt: uint64(block.timestamp),
+            winningPickId: 0
         });
     }
 
@@ -200,11 +206,11 @@ contract Lootery is
     function seedJackpot(uint128 value) external {
         // We allow seeding jackpot during purchase phase only, so we don't
         // have to fuck around with accounting
-        if (gameState != GameState.Purchase) {
-            revert UnexpectedState(gameState, GameState.Purchase);
+        if (currentGame.state != GameState.Purchase) {
+            revert UnexpectedState(currentGame.state, GameState.Purchase);
         }
 
-        gameData[currentGameId].jackpot += value;
+        gameData[currentGame.id].jackpot += value;
         IERC20(prizeToken).safeTransferFrom(msg.sender, address(this), value);
         emit JackpotSeeded(msg.sender, value);
     }
@@ -247,12 +253,12 @@ contract Lootery is
     ///     current game. This should be automated by a keeper.
     function draw() external {
         // Assert we're in the correct state
-        if (gameState != GameState.Purchase) {
-            revert UnexpectedState(gameState, GameState.Purchase);
+        CurrentGame memory currentGame_ = currentGame;
+        if (currentGame_.state != GameState.Purchase) {
+            revert UnexpectedState(currentGame_.state, GameState.Purchase);
         }
-        gameState = GameState.DrawPending;
-        uint256 currentGameId_ = currentGameId;
-        Game memory game = gameData[currentGameId_];
+        currentGame.state = GameState.DrawPending;
+        Game memory game = gameData[currentGame_.id];
         // Assert that the game is actually over
         uint256 gameDeadline = (game.startedAt + gamePeriod);
         if (block.timestamp < gameDeadline) {
@@ -260,14 +266,16 @@ contract Lootery is
         }
         // Assert that there are actually tickets sold in this game
         if (game.ticketsSold == 0) {
-            gameState = GameState.Purchase;
-            // No tickets sold; just go to next game (and rollover the jackpot)
-            uint256 nextGameId = currentGameId_ + 1;
-            currentGameId = nextGameId;
-            uint128 currentJackpot = game.jackpot;
-            gameData[currentGameId_].jackpot = 0;
-            gameData[nextGameId].jackpot = currentJackpot;
-            emit DrawSkipped(currentGameId_);
+            // No tickets sold; just transition to the next game
+            uint248 nextGameId = currentGame_.id + 1;
+            currentGame = CurrentGame({
+                state: GameState.Purchase,
+                id: nextGameId
+            });
+            // Rollover jackpot
+            gameData[currentGame_.id].jackpot = 0;
+            gameData[nextGameId].jackpot = game.jackpot;
+            emit DrawSkipped(currentGame_.id);
         }
         // Assert there's not already a request inflight, unless some
         // reasonable amount of time has already passed
@@ -310,8 +318,8 @@ contract Lootery is
         if (msg.sender != randomiser) {
             revert CallerNotRandomiser(msg.sender);
         }
-        if (gameState != GameState.DrawPending) {
-            revert UnexpectedState(gameState, GameState.DrawPending);
+        if (currentGame.state != GameState.DrawPending) {
+            revert UnexpectedState(currentGame.state, GameState.DrawPending);
         }
         if (randomnessRequest.requestId != requestId) {
             revert RequestIdMismatch(requestId, randomnessRequest.requestId);
@@ -336,20 +344,21 @@ contract Lootery is
             );
         }
         balls = balls.sort();
-        uint256 gameId = currentGameId++;
+        uint248 gameId = currentGame.id;
         emit GameFinalised(gameId, balls);
 
         // Record winning pick identity only (constant 32B)
-        winningPickIds[gameId] = computePickIdentity(balls);
+        gameData[gameId].winningPickId = computePickIdentity(balls);
 
         // Ready for next game
-        gameState = GameState.Purchase;
+        currentGame = CurrentGame({state: GameState.Purchase, id: gameId + 1});
 
         // Set up next game; roll over jackpot
         gameData[gameId + 1] = Game({
             jackpot: gameData[gameId].jackpot,
             ticketsSold: 0,
-            startedAt: uint64(block.timestamp)
+            startedAt: uint64(block.timestamp),
+            winningPickId: 0
         });
     }
 
@@ -364,21 +373,20 @@ contract Lootery is
         _burn(tokenId);
 
         PurchasedTicket memory ticket = purchasedTickets[tokenId];
+        uint256 currentGameId = currentGame.id;
         // Can only claim winnings from the last game
         if (ticket.gameId != currentGameId - 1) {
             revert ClaimWindowMissed(tokenId);
         }
 
-        // Check winning balls from game
-        uint256 winningPickId = winningPickIds[ticket.gameId];
-
         // Determine if the jackpot was won
         Game memory game = gameData[ticket.gameId];
         uint256 jackpot = game.jackpot;
-        uint256 numWinners = tokenByPickIdentity[ticket.gameId][winningPickId]
-            .length;
+        uint256 numWinners = tokenByPickIdentity[ticket.gameId][
+            game.winningPickId
+        ].length;
 
-        if (winningPickId == ticket.pickId) {
+        if (game.winningPickId == ticket.pickId) {
             // This ticket did have the winning numbers
             // Transfer share of jackpot to ticket holder
             // NB: `numWinners` != 0 in this path
@@ -392,7 +400,7 @@ contract Lootery is
             return;
         }
 
-        revert NoWin(ticket.pickId, winningPickId);
+        revert NoWin(ticket.pickId, game.winningPickId);
     }
 
     /// @notice Withdraw accrued community fees
@@ -421,7 +429,7 @@ contract Lootery is
             amount =
                 amount -
                 accruedCommunityFees -
-                gameData[currentGameId].jackpot;
+                gameData[currentGame.id].jackpot;
         }
 
         IERC20(tokenAddress).safeTransfer(msg.sender, amount);
@@ -440,17 +448,18 @@ contract Lootery is
         uint256 jackpotShare
     ) internal {
         uint256 ticketsCount = tickets.length;
-        uint256 currentGameId_ = currentGameId;
-        Game memory game = gameData[currentGameId_];
+        uint256 currentGameId = currentGame.id;
+        Game memory game = gameData[currentGameId];
         if (uint256(game.ticketsSold) + ticketsCount > type(uint64).max) {
             revert TicketsSoldOverflow(
                 uint256(game.ticketsSold) + ticketsCount
             );
         }
-        gameData[currentGameId_] = Game({
+        gameData[currentGameId] = Game({
             jackpot: game.jackpot + uint128(jackpotShare),
             ticketsSold: game.ticketsSold + uint64(ticketsCount),
-            startedAt: game.startedAt
+            startedAt: game.startedAt,
+            winningPickId: game.winningPickId
         });
 
         address whomst;
@@ -480,14 +489,14 @@ contract Lootery is
             uint256 tokenId = startingTokenId + t;
             uint256 pickId = computePickIdentity(picks);
             purchasedTickets[tokenId] = PurchasedTicket({
-                gameId: currentGameId_,
+                gameId: currentGameId,
                 pickId: pickId
             });
             _safeMint(whomst, tokenId);
 
             // Account for this pick set
-            tokenByPickIdentity[currentGameId_][pickId].push(tokenId);
-            emit TicketPurchased(currentGameId_, whomst, tokenId, picks);
+            tokenByPickIdentity[currentGameId][pickId].push(tokenId);
+            emit TicketPurchased(currentGameId, whomst, tokenId, picks);
         }
     }
 

@@ -103,10 +103,12 @@ describe('Lootery', () => {
         ) as unknown as [bigint, bigint[]]
         expect(emittedGameId).to.eq(0)
         expect(emittedBalls).to.deep.eq([1n, 3n, 32n, 53n, 69n])
-        expect(await lotto.winningPickIds(emittedGameId)).to.eq(keccak(emittedBalls))
+        expect(await lotto.gameData(emittedGameId).then((game) => game.winningPickId)).to.eq(
+            keccak(emittedBalls),
+        )
 
         // Check that jackpot rolled over to next game
-        expect(await lotto.currentGameId()).to.eq(1)
+        expect(await lotto.currentGame().then((game) => game.id)).to.eq(1)
         let { jackpot } = await lotto.gameData(1)
         expect(jackpot).to.eq(parseEther('10.05'))
 
@@ -143,10 +145,14 @@ describe('Lootery', () => {
         ) as unknown as [bigint, bigint[]]
         expect(emittedGameId).to.eq(1)
         expect(emittedBalls).to.deep.eq(winningTicket)
-        expect(await lotto.winningPickIds(emittedGameId)).to.eq(keccak(emittedBalls))
+        expect(await lotto.gameData(emittedGameId).then((game) => game.winningPickId)).to.eq(
+            keccak(emittedBalls),
+        )
 
         // Bob claims entire pot
-        jackpot = await lotto.gameData(await lotto.currentGameId()).then((data) => data.jackpot)
+        jackpot = await lotto
+            .gameData(await lotto.currentGame().then((game) => game.id))
+            .then((data) => data.jackpot)
         expect(jackpot).to.eq(parseEther('10.1'))
         const balanceBefore = await testERC20.balanceOf(bob.address)
         await lotto.claimWinnings(2) // winning ticket tokenId=2
@@ -223,11 +229,11 @@ describe('Lootery', () => {
 
         await purchaseTicket(lotto, bob.address, [1, 2, 3, 4, 5])
 
-        const initialGameId = await lotto.currentGameId()
+        const initialGameId = await lotto.currentGame().then((game) => game.id)
         await fastForwardAndDraw(6942069320n)
         await expect(lotto.draw()).to.be.revertedWithCustomError(lotto, 'WaitLonger')
         for (let i = 0; i < 10; i++) {
-            const gameId = await lotto.currentGameId()
+            const gameId = await lotto.currentGame().then((game) => game.id)
             expect(gameId).to.eq(initialGameId + BigInt(i) + 1n)
             await time.increase(gamePeriod)
             await expect(lotto.draw()).to.emit(lotto, 'DrawSkipped').withArgs(gameId)
