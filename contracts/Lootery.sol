@@ -48,6 +48,14 @@ contract Lootery is
         uint64 startedAt;
     }
 
+    /// @notice An already-purchased ticket, assigned to a tokenId
+    struct PurchasedTicket {
+        /// @notice gameId that ticket is valid for
+        uint256 gameId;
+        /// @notice Pick identity - see {Lootery-computePickIdentity}
+        uint256 pickId;
+    }
+
     /// @notice Describes an inflight randomness request
     struct RandomnessRequest {
         uint208 requestId;
@@ -80,10 +88,8 @@ contract Lootery is
     RandomnessRequest public randomnessRequest;
     /// @notice Winning pick identities per game, once they've been drawn
     mapping(uint256 gameId => uint256) public winningPickIds;
-    /// @notice token id => picks
-    mapping(uint256 tokenId => uint256) public tokenIdToTicket;
-    /// @notice token id => game id
-    mapping(uint256 tokenId => uint256) public tokenIdToGameId;
+    /// @notice token id => purchased ticked details (gameId, pickId)
+    mapping(uint256 tokenId => PurchasedTicket) public purchasedTickets;
     /// @notice Game data
     mapping(uint256 gameId => Game) public gameData;
     /// @notice Game id => pick identity => tokenIds
@@ -357,22 +363,22 @@ contract Lootery is
         // Burning the token is our "claim nullifier"
         _burn(tokenId);
 
-        uint256 gameId = tokenIdToGameId[tokenId];
+        PurchasedTicket memory ticket = purchasedTickets[tokenId];
         // Can only claim winnings from the last game
-        if (gameId != currentGameId - 1) {
+        if (ticket.gameId != currentGameId - 1) {
             revert ClaimWindowMissed(tokenId);
         }
 
         // Check winning balls from game
-        uint256 winningPickId = winningPickIds[gameId];
-        uint256 ticketPickId = tokenIdToTicket[tokenId];
+        uint256 winningPickId = winningPickIds[ticket.gameId];
 
         // Determine if the jackpot was won
-        Game memory game = gameData[gameId];
+        Game memory game = gameData[ticket.gameId];
         uint256 jackpot = game.jackpot;
-        uint256 numWinners = tokenByPickIdentity[gameId][winningPickId].length;
+        uint256 numWinners = tokenByPickIdentity[ticket.gameId][winningPickId]
+            .length;
 
-        if (winningPickId == ticketPickId) {
+        if (winningPickId == ticket.pickId) {
             // This ticket did have the winning numbers
             // Transfer share of jackpot to ticket holder
             // NB: `numWinners` != 0 in this path
@@ -382,11 +388,11 @@ contract Lootery is
             // Decrease current games jackpot by the claimed amount
             gameData[currentGameId].jackpot -= uint128(prizeShare);
 
-            emit WinningsClaimed(tokenId, gameId, whomst, prizeShare);
+            emit WinningsClaimed(tokenId, ticket.gameId, whomst, prizeShare);
             return;
         }
 
-        revert NoWin(ticketPickId, winningPickId);
+        revert NoWin(ticket.pickId, winningPickId);
     }
 
     /// @notice Withdraw accrued community fees
@@ -473,8 +479,10 @@ contract Lootery is
             // Record picked numbers
             uint256 tokenId = startingTokenId + t;
             uint256 pickId = computePickIdentity(picks);
-            tokenIdToTicket[tokenId] = pickId;
-            tokenIdToGameId[tokenId] = currentGameId_;
+            purchasedTickets[tokenId] = PurchasedTicket({
+                gameId: currentGameId_,
+                pickId: pickId
+            });
             _safeMint(whomst, tokenId);
 
             // Account for this pick set
