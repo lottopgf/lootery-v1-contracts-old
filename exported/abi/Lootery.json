@@ -245,6 +245,17 @@
     "inputs": [
       {
         "internalType": "address",
+        "name": "prizeToken",
+        "type": "address"
+      }
+    ],
+    "name": "InvalidPrizeToken",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
         "name": "randomiser",
         "type": "address"
       }

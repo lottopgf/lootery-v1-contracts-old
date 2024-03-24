@@ -264,6 +264,7 @@ contract Lootery is
         }
 
         // Assert that there are actually tickets sold in this game
+        // slither-disable-next-line incorrect-equality
         if (game.ticketsSold == 0) {
             // Case #1: No tickets sold; just transition to the next game
             uint248 nextGameId = currentGame_.id + 1;
@@ -298,7 +299,8 @@ contract Lootery is
                 requestPrice
             );
         }
-        // VRF call
+        // VRF call to trusted coordinator
+        // slither-disable-next-line reentrancy-eth,arbitrary-send-eth
         uint256 requestId = IRNGesusReloaded(randomiser).requestRandomness{
             value: requestPrice
         }(block.timestamp + 30, 500_000);
@@ -487,11 +489,14 @@ contract Lootery is
                 gameId: currentGameId,
                 pickId: pickId
             });
-            _safeMint(whomst, tokenId);
 
             // Account for this pick set
             tokenByPickIdentity[currentGameId][pickId].push(tokenId);
             emit TicketPurchased(currentGameId, whomst, tokenId, picks);
+        }
+        // Effects
+        for (uint256 t; t < ticketsCount; ++t) {
+            _safeMint(whomst, startingTokenId + t);
         }
     }
 
