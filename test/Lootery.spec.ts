@@ -109,8 +109,8 @@ describe('Lootery', () => {
 
         // Check that jackpot rolled over to next game
         expect(await lotto.currentGame().then((game) => game.id)).to.eq(1)
-        let { jackpot } = await lotto.gameData(1)
-        expect(jackpot).to.eq(parseEther('10.05'))
+        expect(await lotto.gameData(0).then((game) => game.jackpot)).to.eq(0)
+        expect(await lotto.gameData(1).then((game) => game.jackpot)).to.eq(parseEther('10.05'))
 
         // Bob purchases a winning ticket for 0.1
         await testERC20.mint(bob, parseEther('0.1'))
@@ -150,12 +150,13 @@ describe('Lootery', () => {
         )
 
         // Bob claims entire pot
-        jackpot = await lotto
-            .gameData(await lotto.currentGame().then((game) => game.id))
-            .then((data) => data.jackpot)
+        const gameId = await lotto.currentGame().then((game) => game.id)
+        const jackpot = await lotto.gameData(gameId).then((data) => data.jackpot)
         expect(jackpot).to.eq(parseEther('10.1'))
         const balanceBefore = await testERC20.balanceOf(bob.address)
-        await lotto.claimWinnings(2) // winning ticket tokenId=2
+        await expect(lotto.claimWinnings(2))
+            .to.emit(lotto, 'WinningsClaimed')
+            .withArgs(2, 1, bob.address, jackpot)
         expect(await testERC20.balanceOf(bob.address)).to.eq(balanceBefore + jackpot)
 
         // Withdraw accrued fees

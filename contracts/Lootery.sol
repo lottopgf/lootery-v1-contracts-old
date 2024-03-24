@@ -354,8 +354,10 @@ contract Lootery is
         currentGame = CurrentGame({state: GameState.Purchase, id: gameId + 1});
 
         // Set up next game; roll over jackpot
+        uint128 jackpot = gameData[gameId].jackpot;
+        gameData[gameId].jackpot = 0;
         gameData[gameId + 1] = Game({
-            jackpot: gameData[gameId].jackpot,
+            jackpot: jackpot,
             ticketsSold: 0,
             startedAt: uint64(block.timestamp),
             winningPickId: 0
@@ -380,27 +382,24 @@ contract Lootery is
         }
 
         // Determine if the jackpot was won
-        Game memory game = gameData[ticket.gameId];
-        uint256 jackpot = game.jackpot;
-        uint256 numWinners = tokenByPickIdentity[ticket.gameId][
-            game.winningPickId
-        ].length;
+        uint256 winningPickId = gameData[ticket.gameId].winningPickId;
+        uint256 numWinners = tokenByPickIdentity[ticket.gameId][winningPickId]
+            .length;
 
-        if (game.winningPickId == ticket.pickId) {
-            // This ticket did have the winning numbers
-            // Transfer share of jackpot to ticket holder
+        if (winningPickId == ticket.pickId) {
             // NB: `numWinners` != 0 in this path
-            uint256 prizeShare = jackpot / numWinners;
-            _transferOrBust(whomst, prizeShare);
-
+            // This ticket did have the winning numbers
+            uint256 prizeShare = gameData[currentGameId].jackpot / numWinners;
             // Decrease current games jackpot by the claimed amount
             gameData[currentGameId].jackpot -= uint128(prizeShare);
+            // Transfer share of jackpot to ticket holder
+            _transferOrBust(whomst, prizeShare);
 
             emit WinningsClaimed(tokenId, ticket.gameId, whomst, prizeShare);
             return;
         }
 
-        revert NoWin(ticket.pickId, game.winningPickId);
+        revert NoWin(ticket.pickId, winningPickId);
     }
 
     /// @notice Withdraw accrued community fees
