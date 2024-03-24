@@ -114,8 +114,7 @@ describe('Lootery', () => {
 
         // Check that jackpot rolled over to next game
         expect(await lotto.currentGame().then((game) => game.id)).to.eq(1)
-        expect(await lotto.gameData(0).then((game) => game.jackpot)).to.eq(0)
-        expect(await lotto.gameData(1).then((game) => game.jackpot)).to.eq(parseEther('10.05'))
+        expect(await lotto.jackpot()).to.eq(parseEther('10.05'))
 
         // Bob purchases a winning ticket for 0.1
         await testERC20.mint(bob, parseEther('0.1'))
@@ -156,7 +155,7 @@ describe('Lootery', () => {
 
         // Bob claims entire pot
         const gameId = await lotto.currentGame().then((game) => game.id)
-        const jackpot = await lotto.gameData(gameId).then((data) => data.jackpot)
+        const jackpot = await lotto.jackpot()
         expect(jackpot).to.eq(parseEther('10.1'))
         const balanceBefore = await testERC20.balanceOf(bob.address)
         await expect(lotto.claimWinnings(2))
@@ -193,13 +192,13 @@ describe('Lootery', () => {
         await fastForwardAndDraw(6942069420n)
 
         // Current jackpot + 2 tickets
-        expect((await lotto.gameData(1)).jackpot).to.be.eq(parseEther('10.1'))
+        expect(await lotto.jackpot()).to.be.eq(parseEther('10.1'))
 
         // Alice claims prize
         await lotto.claimWinnings(aliceTokenId)
 
         // Current jackpot is reduced
-        expect((await lotto.gameData(1)).jackpot).to.be.eq(parseEther('5.05'))
+        expect(await lotto.jackpot()).to.be.eq(parseEther('5.05'))
 
         // Balance is half of jackpot + 2 tickets
         expect(await testERC20.balanceOf(lotto)).to.be.eq(parseEther('5.15'))
@@ -209,7 +208,7 @@ describe('Lootery', () => {
         await lotto.draw()
 
         // Half of round 1 jackpot
-        expect((await lotto.gameData(2)).jackpot).to.be.eq(parseEther('5.05'))
+        expect(await lotto.jackpot()).to.be.eq(parseEther('5.05'))
 
         // Bob can't claim anymore
         await expect(lotto.claimWinnings(bobTokenId)).to.be.revertedWithCustomError(

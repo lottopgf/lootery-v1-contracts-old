@@ -47,8 +47,6 @@ contract Lootery is
     }
 
     struct Game {
-        /// @notice Running jackpot total (in wei)
-        uint128 jackpot;
         /// @notice Number of tickets sold per game
         uint64 ticketsSold;
         /// @notice Timestamp of when the game started
@@ -91,6 +89,8 @@ contract Lootery is
     uint256 private currentTokenId;
     /// @notice Current state of the game
     CurrentGame public currentGame;
+    /// @notice Running jackpot
+    uint256 public jackpot;
     /// @notice Current random request details
     RandomnessRequest public randomnessRequest;
     /// @notice token id => purchased ticked details (gameId, pickId)
@@ -194,7 +194,6 @@ contract Lootery is
         prizeToken = prizeToken_;
 
         gameData[0] = Game({
-            jackpot: 0,
             ticketsSold: 0,
             // The first game starts straight away
             startedAt: uint64(block.timestamp),
@@ -203,14 +202,14 @@ contract Lootery is
     }
 
     /// @notice Seed the jackpot
-    function seedJackpot(uint128 value) external {
+    function seedJackpot(uint256 value) external {
         // We allow seeding jackpot during purchase phase only, so we don't
         // have to fuck around with accounting
         if (currentGame.state != GameState.Purchase) {
             revert UnexpectedState(currentGame.state, GameState.Purchase);
         }
 
-        gameData[currentGame.id].jackpot += value;
+        jackpot += value;
         IERC20(prizeToken).safeTransferFrom(msg.sender, address(this), value);
         emit JackpotSeeded(msg.sender, value);
     }
@@ -241,9 +240,6 @@ contract Lootery is
         // Handle fee splits
         uint256 communityFeeShare = (totalPrice * communityFeeBps) / 10000;
         uint256 jackpotShare = totalPrice - communityFeeShare;
-        if (jackpotShare > type(uint128).max) {
-            revert JackpotOverflow(jackpotShare);
-        }
         accruedCommunityFees += communityFeeShare;
 
         _pickTickets(tickets, jackpotShare);
@@ -272,9 +268,6 @@ contract Lootery is
                 state: GameState.Purchase, // redundant, but inconsequential
                 id: nextGameId
             });
-            // Rollover jackpot
-            gameData[currentGame_.id].jackpot = 0;
-            gameData[nextGameId].jackpot = game.jackpot;
             emit DrawSkipped(currentGame_.id);
             return;
         }
@@ -358,10 +351,7 @@ contract Lootery is
         currentGame = CurrentGame({state: GameState.Purchase, id: gameId + 1});
 
         // Set up next game; roll over jackpot
-        uint128 jackpot = gameData[gameId].jackpot;
-        gameData[gameId].jackpot = 0;
         gameData[gameId + 1] = Game({
-            jackpot: jackpot,
             ticketsSold: 0,
             startedAt: uint64(block.timestamp),
             winningPickId: 0
@@ -393,9 +383,9 @@ contract Lootery is
         if (winningPickId == ticket.pickId) {
             // NB: `numWinners` != 0 in this path
             // This ticket did have the winning numbers
-            uint256 prizeShare = gameData[currentGameId].jackpot / numWinners;
+            uint256 prizeShare = jackpot / numWinners;
             // Decrease current games jackpot by the claimed amount
-            gameData[currentGameId].jackpot -= uint128(prizeShare);
+            jackpot -= prizeShare;
             // Transfer share of jackpot to ticket holder
             _transferOrBust(whomst, prizeShare);
 
@@ -429,10 +419,7 @@ contract Lootery is
     function rescueTokens(address tokenAddress) external onlyOwner {
         uint256 amount = IERC20(tokenAddress).balanceOf(address(this));
         if (tokenAddress == prizeToken) {
-            amount =
-                amount -
-                accruedCommunityFees -
-                gameData[currentGame.id].jackpot;
+            amount = amount - accruedCommunityFees - jackpot;
         }
 
         IERC20(tokenAddress).safeTransfer(msg.sender, amount);
@@ -458,8 +445,8 @@ contract Lootery is
                 uint256(game.ticketsSold) + ticketsCount
             );
         }
+        jackpot += jackpotShare;
         gameData[currentGameId] = Game({
-            jackpot: game.jackpot + uint128(jackpotShare),
             ticketsSold: game.ticketsSold + uint64(ticketsCount),
             startedAt: game.startedAt,
             winningPickId: game.winningPickId
