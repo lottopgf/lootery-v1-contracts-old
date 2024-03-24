@@ -144,7 +144,6 @@ contract Lootery is
     error InsufficientRandomWords();
     error NoWin(uint256 pickId, uint256 winningPickId);
     error WaitLonger(uint256 deadline);
-    error JackpotOverflow(uint256 value);
     error TicketsSoldOverflow(uint256 value);
     error InsufficientOperationalFunds(uint256 have, uint256 want);
     error ClaimWindowMissed(uint256 tokenId);
@@ -412,7 +411,9 @@ contract Lootery is
         (bool success, bytes memory data) = msg.sender.call{
             value: address(this).balance
         }("");
-        require(success, "Failed to send Ether");
+        if (!success) {
+            revert TransferFailure(msg.sender, address(this).balance, data);
+        }
     }
 
     /// @notice Allow owner to rescue any tokens sent to the contract; excluding jackpot and accrued fees

@@ -267,17 +267,6 @@
     "inputs": [
       {
         "internalType": "uint256",
-        "name": "value",
-        "type": "uint256"
-      }
-    ],
-    "name": "JackpotOverflow",
-    "type": "error"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "uint256",
         "name": "pickId",
         "type": "uint256"
       },
