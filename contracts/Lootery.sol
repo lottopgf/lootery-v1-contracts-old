@@ -102,6 +102,8 @@ contract Lootery is
         public tokenByPickIdentity;
     /// @notice Accrued community fee share (wei)
     uint256 public accruedCommunityFees;
+    /// @notice When nonzero, this gameId will be the last
+    uint256 public apocalypseGameId;
 
     event TicketPurchased(
         uint256 indexed gameId,
@@ -148,6 +150,7 @@ contract Lootery is
     error TicketsSoldOverflow(uint256 value);
     error InsufficientOperationalFunds(uint256 have, uint256 want);
     error ClaimWindowMissed(uint256 tokenId);
+    error GameInactive();
 
     constructor() {
         _disableInitializers();
@@ -204,8 +207,20 @@ contract Lootery is
         });
     }
 
+    function isGameActive() public view returns (bool) {
+        uint256 apocalypseGameId_ = apocalypseGameId;
+        return !(apocalypseGameId_ != 0 && currentGame.id >= apocalypseGameId_);
+    }
+
+    function _assertGameIsActive() internal view {
+        if (!isGameActive()) {
+            revert GameInactive();
+        }
+    }
+
     /// @notice Seed the jackpot
     function seedJackpot(uint256 value) external {
+        _assertGameIsActive();
         // We allow seeding jackpot during purchase phase only, so we don't
         // have to fuck around with accounting
         if (currentGame.state != GameState.Purchase) {
@@ -226,6 +241,26 @@ contract Lootery is
             packed[i] = bytes1(picks[i]);
         }
         return uint256(keccak256(packed));
+    }
+
+    /// @notice Compute the winning BALLS given a random seed
+    /// @param randomSeed Seed that determines the permutation of BALLS
+    function computeWinningBalls(
+        uint256 randomSeed
+    ) public view returns (uint8[] memory balls) {
+        balls = new uint8[](numPicks);
+        for (uint256 i; i < numPicks; ++i) {
+            balls[i] = uint8(
+                1 +
+                    FeistelShuffleOptimised.shuffle(
+                        i,
+                        maxBallValue,
+                        randomSeed,
+                        4
+                    )
+            );
+        }
+        balls = balls.sort();
     }
 
     /// @notice Purchase a ticket
@@ -251,6 +286,8 @@ contract Lootery is
     /// @notice Draw numbers, picking potential jackpot winners and ending the
     ///     current game. This should be automated by a keeper.
     function draw() external {
+        _assertGameIsActive();
+        // Assert game is still playable
         // Assert we're in the correct state
         CurrentGame memory currentGame_ = currentGame;
         if (currentGame_.state != GameState.Purchase) {
@@ -333,19 +370,7 @@ contract Lootery is
         }
 
         // Pick numbers
-        uint8[] memory balls = new uint8[](numPicks);
-        for (uint256 i; i < numPicks; ++i) {
-            balls[i] = uint8(
-                1 +
-                    FeistelShuffleOptimised.shuffle(
-                        i,
-                        maxBallValue,
-                        randomWords[0],
-                        4
-                    )
-            );
-        }
-        balls = balls.sort();
+        uint8[] memory balls = computeWinningBalls(randomWords[0]);
         uint248 gameId = currentGame.id;
         emit GameFinalised(gameId, balls);
 
@@ -381,9 +406,20 @@ contract Lootery is
         }
 
         // Determine if the jackpot was won
-        uint256 winningPickId = gameData[ticket.gameId].winningPickId;
+        Game memory ticketGame = gameData[ticket.gameId];
+        uint256 winningPickId = ticketGame.winningPickId;
         uint256 numWinners = tokenByPickIdentity[ticket.gameId][winningPickId]
             .length;
+
+        if (numWinners == 0 && !isGameActive()) {
+            // No jackpot winners, and game is no longer active!
+            // Jackpot is shared between all tickets
+            // Invariant: `ticketsSold[gameId] > 0`
+            uint256 prizeShare = jackpot / ticketGame.ticketsSold;
+            _transferOrBust(whomst, prizeShare);
+            emit ConsolationClaimed(tokenId, ticket.gameId, whomst, prizeShare);
+            return;
+        }
 
         if (winningPickId == ticket.pickId) {
             // NB: `numWinners` != 0 in this path
@@ -411,6 +447,20 @@ contract Lootery is
     /// @notice Allow owner to pick tickets for free
     function ownerPick(Ticket[] calldata tickets) external onlyOwner {
         _pickTickets(tickets, 0);
+    }
+
+    /// @notice Set the next game as the last game of the lottery
+    function kill() external onlyOwner {
+        if (apocalypseGameId != 0) {
+            // Already set
+            revert GameInactive();
+        }
+
+        CurrentGame memory currentGame_ = currentGame;
+        if (currentGame_.state != GameState.Purchase) {
+            revert UnexpectedState(currentGame_.state, GameState.Purchase);
+        }
+        apocalypseGameId = currentGame_.id + 1;
     }
 
     function rescueETH() external onlyOwner {
@@ -444,8 +494,12 @@ contract Lootery is
         Ticket[] calldata tickets,
         uint256 jackpotShare
     ) internal {
+        CurrentGame memory currentGame_ = currentGame;
+        uint256 currentGameId = currentGame_.id;
+        // Assert game is still playable
+        _assertGameIsActive();
+
         uint256 ticketsCount = tickets.length;
-        uint256 currentGameId = currentGame.id;
         Game memory game = gameData[currentGameId];
         if (uint256(game.ticketsSold) + ticketsCount > type(uint64).max) {
             revert TicketsSoldOverflow(

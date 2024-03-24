@@ -154,7 +154,6 @@ describe('Lootery', () => {
         )
 
         // Bob claims entire pot
-        const gameId = await lotto.currentGame().then((game) => game.id)
         const jackpot = await lotto.jackpot()
         expect(jackpot).to.eq(parseEther('10.1'))
         const balanceBefore = await testERC20.balanceOf(bob.address)
@@ -162,6 +161,10 @@ describe('Lootery', () => {
             .to.emit(lotto, 'WinningsClaimed')
             .withArgs(2, 1, bob.address, jackpot)
         expect(await testERC20.balanceOf(bob.address)).to.eq(balanceBefore + jackpot)
+        await expect(lotto.ownerOf(2)).to.be.revertedWithCustomError(
+            lotto,
+            'ERC721NonexistentToken',
+        )
 
         // Withdraw accrued fees
         const accruedFees = await lotto.accruedCommunityFees()
@@ -347,6 +350,151 @@ describe('Lootery', () => {
             lotto.connect(impersonatedRandomiser).receiveRandomWords(requestId, [6942069421]),
         ).to.be.revertedWithCustomError(lotto, 'UnexpectedState')
     })
+
+    describe('Apocalypse', () => {
+        it('distributes to winner only when there is a winner', async () => {
+            const gamePeriod = 1n * 60n * 60n
+            async function deploy() {
+                return deployLotto({
+                    deployer,
+                    gamePeriod,
+                    prizeToken: testERC20,
+                })
+            }
+            const { lotto, fastForwardAndDraw } = await loadFixture(deploy)
+
+            // Buy some tickets
+            await testERC20.mint(deployer, parseEther('1000'))
+            await testERC20.approve(lotto, parseEther('1000'))
+
+            await purchaseTicket(lotto, bob.address, [1, 2, 3, 4, 5])
+
+            const initialGameId = await lotto.currentGame().then((game) => game.id)
+            await fastForwardAndDraw(6942069320n)
+            await expect(lotto.draw()).to.be.revertedWithCustomError(lotto, 'WaitLonger')
+            for (let i = 0; i < 10; i++) {
+                const gameId = await lotto.currentGame().then((game) => game.id)
+                expect(gameId).to.eq(initialGameId + BigInt(i) + 1n)
+                await time.increase(gamePeriod)
+                await expect(lotto.draw()).to.emit(lotto, 'DrawSkipped').withArgs(gameId)
+            }
+
+            // Herald the end of days
+            const { id: gameId } = await lotto.currentGame()
+            await lotto.kill()
+            expect(await lotto.apocalypseGameId()).to.eq(gameId + 1n)
+
+            // Buy tickets
+            const picks: [string, number[]][] = [
+                [bob.address, [1, 3, 32, 53, 69]],
+                [bob.address, [2, 3, 4, 5, 6]],
+                [alice.address, [3, 4, 5, 6, 7]],
+                [alice.address, [4, 5, 6, 7, 8]],
+            ]
+            const tickets: { owner: string; tokenId: bigint }[] = await Promise.all(
+                picks.map(async ([owner, pick]) => {
+                    const { tokenId } = await purchaseTicket(lotto, owner, pick)
+                    return {
+                        owner,
+                        tokenId,
+                    }
+                }),
+            )
+
+            await fastForwardAndDraw(6942069421n)
+            expect(await lotto.isGameActive()).to.eq(false)
+
+            // Game no longer active -> no longer possible to do the following actions
+            await expect(lotto.kill()).to.be.revertedWithCustomError(lotto, 'GameInactive')
+            await expect(lotto.seedJackpot(parseEther('10'))).to.be.revertedWithCustomError(
+                lotto,
+                'GameInactive',
+            )
+            await expect(lotto.draw()).to.be.revertedWithCustomError(lotto, 'GameInactive')
+            await expect(
+                purchaseTicket(lotto, bob.address, [1, 2, 3, 4, 5]),
+            ).to.be.revertedWithCustomError(lotto, 'GameInactive')
+
+            // Bob has the winning ticket
+            const jackpot = await lotto.jackpot()
+            const balanceBefore = await testERC20.balanceOf(bob.address)
+            await lotto.claimWinnings(tickets[0].tokenId)
+            expect(await testERC20.balanceOf(bob.address)).to.eq(balanceBefore + jackpot)
+        })
+
+        it('distributes to everyone when there are no winners', async () => {
+            const gamePeriod = 1n * 60n * 60n
+            async function deploy() {
+                return deployLotto({
+                    deployer,
+                    gamePeriod,
+                    prizeToken: testERC20,
+                })
+            }
+            const { lotto, fastForwardAndDraw } = await loadFixture(deploy)
+
+            // Buy some tickets
+            await testERC20.mint(deployer, parseEther('1000'))
+            await testERC20.approve(lotto, parseEther('1000'))
+
+            await purchaseTicket(lotto, bob.address, [1, 2, 3, 4, 5])
+
+            const initialGameId = await lotto.currentGame().then((game) => game.id)
+            await fastForwardAndDraw(6942069320n)
+            await expect(lotto.draw()).to.be.revertedWithCustomError(lotto, 'WaitLonger')
+            for (let i = 0; i < 10; i++) {
+                const gameId = await lotto.currentGame().then((game) => game.id)
+                expect(gameId).to.eq(initialGameId + BigInt(i) + 1n)
+                await time.increase(gamePeriod)
+                await expect(lotto.draw()).to.emit(lotto, 'DrawSkipped').withArgs(gameId)
+            }
+
+            // Herald the end of days
+            const { id: gameId } = await lotto.currentGame()
+            await lotto.kill()
+            expect(await lotto.apocalypseGameId()).to.eq(gameId + 1n)
+
+            // Buy tickets
+            const picks: [string, number[]][] = [
+                [bob.address, [1, 2, 3, 4, 5]],
+                [bob.address, [2, 3, 4, 5, 6]],
+                [alice.address, [3, 4, 5, 6, 7]],
+                [alice.address, [4, 5, 6, 7, 8]],
+            ]
+            const tickets: { owner: string; tokenId: bigint }[] = await Promise.all(
+                picks.map(async ([owner, pick]) => {
+                    const { tokenId } = await purchaseTicket(lotto, owner, pick)
+                    return {
+                        owner,
+                        tokenId,
+                    }
+                }),
+            )
+
+            await fastForwardAndDraw(6942069320n)
+            expect(await lotto.isGameActive()).to.eq(false)
+
+            // Game no longer active -> no longer possible to do the following actions
+            await expect(lotto.kill()).to.be.revertedWithCustomError(lotto, 'GameInactive')
+            await expect(lotto.seedJackpot(parseEther('10'))).to.be.revertedWithCustomError(
+                lotto,
+                'GameInactive',
+            )
+            await expect(lotto.draw()).to.be.revertedWithCustomError(lotto, 'GameInactive')
+            await expect(
+                purchaseTicket(lotto, bob.address, [1, 2, 3, 4, 5]),
+            ).to.be.revertedWithCustomError(lotto, 'GameInactive')
+
+            // No winners -> each ticket claims share of jackpot
+            const jackpot = await lotto.jackpot()
+            const expectedShare = jackpot / BigInt(tickets.length)
+            for (const ticket of tickets) {
+                const balanceBefore = await testERC20.balanceOf(ticket.owner)
+                await lotto.claimWinnings(ticket.tokenId)
+                expect(await testERC20.balanceOf(ticket.owner)).to.eq(balanceBefore + expectedShare)
+            }
+        })
+    })
 })
 
 function keccak(balls: bigint[]) {
@@ -489,7 +637,7 @@ async function purchaseTicket(connectedLotto: Lootery, whomst: string, picks: Bi
         )
         .filter((value): value is LogDescription => !!value)
     const ticketPurchasedEvent = parsedLogs.find((log) => log.name === 'TicketPurchased')
-    const [, , tokenId] = ticketPurchasedEvent!.args
+    const [, , tokenId] = ticketPurchasedEvent!.args as unknown as [any, any, bigint]
     return {
         tokenId,
     }
