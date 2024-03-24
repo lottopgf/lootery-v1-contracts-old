@@ -132,6 +132,7 @@ contract Lootery is
     error InvalidGamePeriod(uint256 gamePeriod);
     error InvalidTicketPrice(uint256 ticketPrice);
     error InvalidRandomiser(address randomiser);
+    error InvalidPrizeToken(address prizeToken);
     error IncorrectPaymentAmount(uint256 paid, uint256 expected);
     error UnsortedPicks(uint8[] picks);
     error InvalidBallValue(uint256 ballValue);
@@ -190,6 +191,9 @@ contract Lootery is
         }
         randomiser = randomiser_;
 
+        if (prizeToken_ == address(0)) {
+            revert InvalidPrizeToken(prizeToken_);
+        }
         prizeToken = prizeToken_;
 
         gameData[0] = Game({
