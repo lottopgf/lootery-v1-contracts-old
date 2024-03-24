@@ -257,26 +257,30 @@ contract Lootery is
         if (currentGame_.state != GameState.Purchase) {
             revert UnexpectedState(currentGame_.state, GameState.Purchase);
         }
-        currentGame.state = GameState.DrawPending;
         Game memory game = gameData[currentGame_.id];
         // Assert that the game is actually over
         uint256 gameDeadline = (game.startedAt + gamePeriod);
         if (block.timestamp < gameDeadline) {
             revert WaitLonger(gameDeadline);
         }
+
         // Assert that there are actually tickets sold in this game
         if (game.ticketsSold == 0) {
-            // No tickets sold; just transition to the next game
+            // Case #1: No tickets sold; just transition to the next game
             uint248 nextGameId = currentGame_.id + 1;
             currentGame = CurrentGame({
-                state: GameState.Purchase,
+                state: GameState.Purchase, // redundant, but inconsequential
                 id: nextGameId
             });
             // Rollover jackpot
             gameData[currentGame_.id].jackpot = 0;
             gameData[nextGameId].jackpot = game.jackpot;
             emit DrawSkipped(currentGame_.id);
+            return;
         }
+
+        // Case #2: Tickets were sold
+        currentGame.state = GameState.DrawPending;
         // Assert there's not already a request inflight, unless some
         // reasonable amount of time has already passed
         RandomnessRequest memory randReq = randomnessRequest;

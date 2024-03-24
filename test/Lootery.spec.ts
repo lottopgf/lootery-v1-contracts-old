@@ -1,5 +1,10 @@
 import { ethers } from 'hardhat'
-import { loadFixture, time, setBalance } from '@nomicfoundation/hardhat-network-helpers'
+import {
+    loadFixture,
+    time,
+    setBalance,
+    impersonateAccount,
+} from '@nomicfoundation/hardhat-network-helpers'
 import {
     Lootery,
     LooteryFactory,
@@ -315,6 +320,33 @@ describe('Lootery', () => {
             [lotto, deployer],
             [parseEther('-10'), parseEther('10')],
         )
+    })
+
+    it('should skip VRF request if nobody bought tickets', async () => {
+        const gamePeriod = 1n * 60n * 60n
+        async function deploy() {
+            return deployLotto({
+                deployer,
+                gamePeriod,
+                prizeToken: testERC20,
+            })
+        }
+        const { lotto, mockRandomiser } = await loadFixture(deploy)
+
+        // Draw
+        await time.increase(gamePeriod)
+        await setBalance(await lotto.getAddress(), parseEther('0.1'))
+        await expect(lotto.draw()).to.emit(lotto, 'DrawSkipped')
+        const { requestId } = await lotto.randomnessRequest()
+        expect(requestId).to.eq(0)
+
+        const mockRandomiserAddress = await mockRandomiser.getAddress()
+        await impersonateAccount(mockRandomiserAddress)
+        await setBalance(mockRandomiserAddress, parseEther('10'))
+        const impersonatedRandomiser = await ethers.getSigner(mockRandomiserAddress)
+        await expect(
+            lotto.connect(impersonatedRandomiser).receiveRandomWords(requestId, [6942069421]),
+        ).to.be.revertedWithCustomError(lotto, 'UnexpectedState')
     })
 })
 
