@@ -406,8 +406,8 @@ contract Lootery is
         }
 
         // Determine if the jackpot was won
-        Game memory ticketGame = gameData[ticket.gameId];
-        uint256 winningPickId = ticketGame.winningPickId;
+        Game memory prevGame = gameData[ticket.gameId];
+        uint256 winningPickId = prevGame.winningPickId;
         uint256 numWinners = tokenByPickIdentity[ticket.gameId][winningPickId]
             .length;
 
@@ -415,7 +415,7 @@ contract Lootery is
             // No jackpot winners, and game is no longer active!
             // Jackpot is shared between all tickets
             // Invariant: `ticketsSold[gameId] > 0`
-            uint256 prizeShare = jackpot / ticketGame.ticketsSold;
+            uint256 prizeShare = jackpot / prevGame.ticketsSold;
             _transferOrBust(whomst, prizeShare);
             emit ConsolationClaimed(tokenId, ticket.gameId, whomst, prizeShare);
             return;
