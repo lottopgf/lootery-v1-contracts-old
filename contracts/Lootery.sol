@@ -84,6 +84,8 @@ contract Lootery is
     uint256 public ticketPrice;
     /// @notice Percentage of ticket price directed to the community
     uint256 public communityFeeBps;
+    /// @notice Minimum seconds to wait between seeding jackpot
+    uint256 public seedJackpotDelay;
 
     /// @dev Current token id
     uint256 private currentTokenId;
@@ -104,6 +106,8 @@ contract Lootery is
     uint256 public accruedCommunityFees;
     /// @notice When nonzero, this gameId will be the last
     uint256 public apocalypseGameId;
+    /// @notice Timestamp of when jackpot was last seeded
+    uint256 public jackpotLastSeededAt;
 
     event TicketPurchased(
         uint256 indexed gameId,
@@ -151,6 +155,7 @@ contract Lootery is
     error InsufficientOperationalFunds(uint256 have, uint256 want);
     error ClaimWindowMissed(uint256 tokenId);
     error GameInactive();
+    error RateLimited(uint256 secondsToWait);
 
     constructor() {
         _disableInitializers();
@@ -167,7 +172,8 @@ contract Lootery is
         uint256 ticketPrice_,
         uint256 communityFeeBps_,
         address randomiser_,
-        address prizeToken_
+        address prizeToken_,
+        uint256 seedJackpotDelay_
     ) public initializer {
         __Ownable_init(owner_);
         __ERC721_init(name_, symbol_);
@@ -199,6 +205,8 @@ contract Lootery is
         }
         prizeToken = prizeToken_;
 
+        seedJackpotDelay = seedJackpotDelay_;
+
         gameData[0] = Game({
             ticketsSold: 0,
             // The first game starts straight away
@@ -226,6 +234,14 @@ contract Lootery is
         if (currentGame.state != GameState.Purchase) {
             revert UnexpectedState(currentGame.state, GameState.Purchase);
         }
+
+        // Rate limit seeding the jackpot
+        if (block.timestamp < jackpotLastSeededAt + seedJackpotDelay) {
+            revert RateLimited(
+                jackpotLastSeededAt + seedJackpotDelay - block.timestamp
+            );
+        }
+        jackpotLastSeededAt = block.timestamp;
 
         jackpot += value;
         IERC20(prizeToken).safeTransferFrom(msg.sender, address(this), value);

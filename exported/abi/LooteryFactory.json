@@ -358,6 +358,11 @@
         "internalType": "address",
         "name": "prizeToken_",
         "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "seedJackpotDelay_",
+        "type": "uint256"
       }
     ],
     "name": "create",

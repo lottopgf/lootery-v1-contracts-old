@@ -67,6 +67,7 @@ describe('Lootery', () => {
             parseEther('0.1'),
             5000, // 50%,
             testERC20,
+            3600, // 1 hour
         )
 
         // Allow seeding jackpot
@@ -351,6 +352,32 @@ describe('Lootery', () => {
         ).to.be.revertedWithCustomError(lotto, 'UnexpectedState')
     })
 
+    it('should rate-limit seeding jackpots', async () => {
+        async function deploy() {
+            return deployLotto({
+                deployer,
+                gamePeriod: 86400n,
+                prizeToken: testERC20,
+                seedJackpotDelay: 3600n /** 1h */,
+                shouldSkipSeedJackpot: true,
+            })
+        }
+        const { lotto } = await loadFixture(deploy)
+
+        await testERC20.mint(deployer.address, parseEther('10000'))
+        await testERC20.approve(await lotto.getAddress(), (1n << 256n) - 1n)
+        await lotto.seedJackpot(parseEther('100'))
+        expect(await testERC20.balanceOf(await lotto.getAddress())).to.eq(parseEther('100'))
+        await expect(lotto.seedJackpot(parseEther('100'))).to.be.revertedWithCustomError(
+            lotto,
+            'RateLimited',
+        )
+        // Wait 1h
+        await time.increase(3600)
+        await lotto.seedJackpot(parseEther('100'))
+        expect(await testERC20.balanceOf(await lotto.getAddress())).to.eq(parseEther('200'))
+    })
+
     describe('Apocalypse', () => {
         it('distributes to winner only when there is a winner', async () => {
             const gamePeriod = 1n * 60n * 60n
@@ -508,11 +535,16 @@ async function deployLotto({
     deployer,
     gamePeriod,
     prizeToken,
+    seedJackpotDelay,
+    shouldSkipSeedJackpot,
 }: {
     deployer: SignerWithAddress
     /** seconds */
     gamePeriod: bigint
     prizeToken: TestERC20
+    /** seconds */
+    seedJackpotDelay?: bigint
+    shouldSkipSeedJackpot?: boolean
 }) {
     const mockRandomiser = await new MockRandomiser__factory(deployer).deploy()
     const lotto = await deployProxy({
@@ -529,12 +561,16 @@ async function deployLotto({
             5000, // 50%
             await mockRandomiser.getAddress(),
             await prizeToken.getAddress(),
+            typeof seedJackpotDelay === 'undefined' ? 3600 : seedJackpotDelay /** default to 1h */,
         ]),
     })
-    // Seed initial jackpot with 10 ETH
-    await prizeToken.mint(deployer, parseEther('10'))
-    await prizeToken.approve(lotto, parseEther('10'))
-    await lotto.seedJackpot(parseEther('10'))
+
+    if (!shouldSkipSeedJackpot) {
+        // Seed initial jackpot with 10 ETH
+        await prizeToken.mint(deployer, parseEther('10'))
+        await prizeToken.approve(lotto, parseEther('10'))
+        await lotto.seedJackpot(parseEther('10'))
+    }
 
     const fastForwardAndDraw = async (randomness: bigint) => {
         // Draw
