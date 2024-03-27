@@ -4,9 +4,9 @@ pragma solidity ^0.8;
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "../interfaces/IRandomiserCallback.sol";
-import "../interfaces/IRNGesusReloaded.sol";
+import "../interfaces/IAnyrand.sol";
 
-contract MockRandomiser is IRNGesusReloaded, Ownable {
+contract MockRandomiser is IAnyrand, Ownable {
     uint256 public nextRequestId = 1;
     mapping(uint256 => address) private requestIdToCallbackMap;
     mapping(address => bool) public authorisedContracts;

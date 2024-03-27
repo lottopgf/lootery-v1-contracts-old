@@ -9,7 +9,7 @@ import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/Own
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IRandomiserCallback} from "./interfaces/IRandomiserCallback.sol";
-import {IRNGesusReloaded} from "./interfaces/IRNGesusReloaded.sol";
+import {IAnyrand} from "./interfaces/IAnyrand.sol";
 
 /// @title Lootery
 /// @notice Lotto the ultimate
@@ -343,9 +343,7 @@ contract Lootery is
 
         // Assert that we have enough in operational funds so as to not eat
         // into jackpots or whatever else.
-        uint256 requestPrice = IRNGesusReloaded(randomiser).getRequestPrice(
-            500_000
-        );
+        uint256 requestPrice = IAnyrand(randomiser).getRequestPrice(500_000);
         if (address(this).balance < requestPrice) {
             revert InsufficientOperationalFunds(
                 accruedCommunityFees,
@@ -354,7 +352,7 @@ contract Lootery is
         }
         // VRF call to trusted coordinator
         // slither-disable-next-line reentrancy-eth,arbitrary-send-eth
-        uint256 requestId = IRNGesusReloaded(randomiser).requestRandomness{
+        uint256 requestId = IAnyrand(randomiser).requestRandomness{
             value: requestPrice
         }(block.timestamp + 30, 500_000);
         if (requestId > type(uint208).max) {
