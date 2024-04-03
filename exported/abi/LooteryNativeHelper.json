@@ -1,0 +1,69 @@
+[
+  {
+    "inputs": [
+      {
+        "internalType": "address payable",
+        "name": "_wrappedTokenAddress",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "constructor"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address payable",
+        "name": "looteryAddress",
+        "type": "address"
+      },
+      {
+        "components": [
+          {
+            "internalType": "address",
+            "name": "whomst",
+            "type": "address"
+          },
+          {
+            "internalType": "uint8[]",
+            "name": "picks",
+            "type": "uint8[]"
+          }
+        ],
+        "internalType": "struct Lootery.Ticket[]",
+        "name": "tickets",
+        "type": "tuple[]"
+      }
+    ],
+    "name": "purchaseNative",
+    "outputs": [],
+    "stateMutability": "payable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address payable",
+        "name": "looteryAddress",
+        "type": "address"
+      }
+    ],
+    "name": "seedJackpotNative",
+    "outputs": [],
+    "stateMutability": "payable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "wrappedToken",
+    "outputs": [
+      {
+        "internalType": "contract IWETH9",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  }
+]
