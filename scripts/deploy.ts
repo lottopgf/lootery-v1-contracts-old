@@ -5,10 +5,23 @@ import {
     Lootery__factory,
 } from '../typechain-types'
 
-const RNGESUS_ADDRESS = '0xd0e5895353BB4445E5B06935B2ACc1D427C24529' /** scroll sepolia */
+interface Config {
+    [chainId: string]: {
+        anyrand: `0x${string}`
+    }
+}
+
+const config: Config = {
+    '8453': {
+        anyrand:
+            '0xe3a8eca966457bfd7e0049543e07e8b691b3930e' /** base mainnet; drand on BN254 v2 (SVDW) */,
+    },
+}
 
 async function main() {
     const [deployer] = await ethers.getSigners()
+    const chainId = await ethers.provider.getNetwork().then((network) => network.chainId)
+    const { anyrand } = config[chainId.toString() as keyof typeof config]
 
     const looteryImpl = await new Lootery__factory(deployer)
         .deploy()
@@ -18,7 +31,7 @@ async function main() {
         .then((tx) => tx.waitForDeployment())
     const initData = LooteryFactory__factory.createInterface().encodeFunctionData('init', [
         await looteryImpl.getAddress(),
-        RNGESUS_ADDRESS,
+        anyrand,
     ])
     const factoryProxyArgs: Parameters<ERC1967Proxy__factory['deploy']> = [
         await factoryImpl.getAddress(),

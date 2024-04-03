@@ -162,6 +162,11 @@
     "type": "error"
   },
   {
+    "inputs": [],
+    "name": "GameInactive",
+    "type": "error"
+  },
+  {
     "inputs": [
       {
         "internalType": "uint256",
@@ -245,6 +250,17 @@
     "inputs": [
       {
         "internalType": "address",
+        "name": "prizeToken",
+        "type": "address"
+      }
+    ],
+    "name": "InvalidPrizeToken",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
         "name": "randomiser",
         "type": "address"
       }
@@ -261,17 +277,6 @@
       }
     ],
     "name": "InvalidTicketPrice",
-    "type": "error"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "uint256",
-        "name": "value",
-        "type": "uint256"
-      }
-    ],
-    "name": "JackpotOverflow",
     "type": "error"
   },
   {
@@ -315,6 +320,17 @@
       }
     ],
     "name": "OwnableUnauthorizedAccount",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "secondsToWait",
+        "type": "uint256"
+      }
+    ],
+    "name": "RateLimited",
     "type": "error"
   },
   {
@@ -573,6 +589,25 @@
       {
         "indexed": true,
         "internalType": "address",
+        "name": "whomst",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "amount",
+        "type": "uint256"
+      }
+    ],
+    "name": "JackpotSeeded",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
         "name": "previousOwner",
         "type": "address"
       },
@@ -725,6 +760,19 @@
     "type": "function"
   },
   {
+    "inputs": [],
+    "name": "apocalypseGameId",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
     "inputs": [
       {
         "internalType": "address",
@@ -788,13 +836,37 @@
     "type": "function"
   },
   {
-    "inputs": [],
-    "name": "currentGameId",
-    "outputs": [
+    "inputs": [
       {
         "internalType": "uint256",
-        "name": "",
+        "name": "randomSeed",
         "type": "uint256"
+      }
+    ],
+    "name": "computeWinningBalls",
+    "outputs": [
+      {
+        "internalType": "uint8[]",
+        "name": "balls",
+        "type": "uint8[]"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "currentGame",
+    "outputs": [
+      {
+        "internalType": "enum Lootery.GameState",
+        "name": "state",
+        "type": "uint8"
+      },
+      {
+        "internalType": "uint248",
+        "name": "id",
+        "type": "uint248"
       }
     ],
     "stateMutability": "view",
@@ -818,11 +890,6 @@
     "name": "gameData",
     "outputs": [
       {
-        "internalType": "uint128",
-        "name": "jackpot",
-        "type": "uint128"
-      },
-      {
         "internalType": "uint64",
         "name": "ticketsSold",
         "type": "uint64"
@@ -831,6 +898,11 @@
         "internalType": "uint64",
         "name": "startedAt",
         "type": "uint64"
+      },
+      {
+        "internalType": "uint256",
+        "name": "winningPickId",
+        "type": "uint256"
       }
     ],
     "stateMutability": "view",
@@ -844,19 +916,6 @@
         "internalType": "uint256",
         "name": "",
         "type": "uint256"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "gameState",
-    "outputs": [
-      {
-        "internalType": "enum Lootery.GameState",
-        "name": "",
-        "type": "uint8"
       }
     ],
     "stateMutability": "view",
@@ -932,6 +991,11 @@
         "internalType": "address",
         "name": "prizeToken_",
         "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "seedJackpotDelay_",
+        "type": "uint256"
       }
     ],
     "name": "init",
@@ -961,6 +1025,52 @@
       }
     ],
     "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "isGameActive",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "jackpot",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "jackpotLastSeededAt",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "kill",
+    "outputs": [],
+    "stateMutability": "nonpayable",
     "type": "function"
   },
   {
@@ -1098,6 +1208,30 @@
     "type": "function"
   },
   {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "tokenId",
+        "type": "uint256"
+      }
+    ],
+    "name": "purchasedTickets",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "gameId",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "pickId",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
     "inputs": [],
     "name": "randomiser",
     "outputs": [
@@ -1227,14 +1361,27 @@
   {
     "inputs": [
       {
-        "internalType": "uint128",
+        "internalType": "uint256",
         "name": "value",
-        "type": "uint128"
+        "type": "uint256"
       }
     ],
     "name": "seedJackpot",
     "outputs": [],
     "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "seedJackpotDelay",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
     "type": "function"
   },
   {
@@ -1337,44 +1484,6 @@
         "type": "uint256"
       }
     ],
-    "name": "tokenIdToGameId",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "uint256",
-        "name": "tokenId",
-        "type": "uint256"
-      }
-    ],
-    "name": "tokenIdToTicket",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "uint256",
-        "name": "tokenId",
-        "type": "uint256"
-      }
-    ],
     "name": "tokenURI",
     "outputs": [
       {
@@ -1420,25 +1529,6 @@
     "name": "transferOwnership",
     "outputs": [],
     "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "uint256",
-        "name": "gameId",
-        "type": "uint256"
-      }
-    ],
-    "name": "winningPickIds",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
-    ],
-    "stateMutability": "view",
     "type": "function"
   },
   {

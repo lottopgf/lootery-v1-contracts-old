@@ -102,7 +102,8 @@ contract LooteryFactory is UUPSUpgradeable, AccessControlUpgradeable {
         uint256 gamePeriod_,
         uint256 ticketPrice_,
         uint256 communityFeeBps_,
-        address prizeToken_
+        address prizeToken_,
+        uint256 seedJackpotDelay_
     ) external returns (address) {
         uint256 nonce = NONCE_SLOT.getUint256Slot().value++;
         bytes32 salt = computeSalt(nonce);
@@ -123,7 +124,8 @@ contract LooteryFactory is UUPSUpgradeable, AccessControlUpgradeable {
             ticketPrice_,
             communityFeeBps_,
             RANDOMISER_SLOT.getAddressSlot().value,
-            prizeToken_
+            prizeToken_,
+            seedJackpotDelay_
         );
         emit LooteryLaunched(
             looteryProxy,
