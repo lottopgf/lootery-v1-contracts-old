@@ -11,6 +11,25 @@
     "type": "constructor"
   },
   {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "whomst",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "amount",
+        "type": "uint256"
+      }
+    ],
+    "name": "JackpotSeeded",
+    "type": "event"
+  },
+  {
     "inputs": [
       {
         "internalType": "address payable",
@@ -35,7 +54,7 @@
         "type": "tuple[]"
       }
     ],
-    "name": "purchaseNative",
+    "name": "purchase",
     "outputs": [],
     "stateMutability": "payable",
     "type": "function"
@@ -48,7 +67,7 @@
         "type": "address"
       }
     ],
-    "name": "seedJackpotNative",
+    "name": "seedJackpot",
     "outputs": [],
     "stateMutability": "payable",
     "type": "function"
