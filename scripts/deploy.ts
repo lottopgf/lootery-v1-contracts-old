@@ -13,8 +13,11 @@ interface Config {
 
 const config: Config = {
     '8453': {
-        anyrand:
-            '0xe3a8eca966457bfd7e0049543e07e8b691b3930e' /** base mainnet; drand on BN254 v2 (SVDW) */,
+        /** base mainnet; drand on BN254 v2 (SVDW) */
+        anyrand: '0xe3a8eca966457bfd7e0049543e07e8b691b3930e',
+    },
+    '666666666': {
+        anyrand: '0x9309bd93a8b662d315Ce0D43bb95984694F120Cb',
     },
 }
 
