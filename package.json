@@ -4,6 +4,8 @@
   "description": "Run your own onchain lottery",
   "scripts": {
     "deploy:basetestnet": "yarn hardhat --network baseSepolia run scripts/deploy.ts",
+    "deploy:degen": "yarn hardhat --network degen run scripts/deploy.ts",
+    "deploy:ethadapter:degen": "yarn hardhat --network degen run scripts/deployLooteryETHAdapter.ts",
     "test": "yarn hardhat --network hardhat test",
     "coverage": "yarn hardhat --network hardhat coverage"
   },
