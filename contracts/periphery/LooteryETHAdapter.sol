@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.23;
 
-import {Lootery} from "./Lootery.sol";
-import {IWETH9} from "./interfaces/IWETH9.sol";
+import {Lootery} from "../Lootery.sol";
+import {IWETH9} from "../interfaces/IWETH9.sol";
 
 contract LooteryETHAdapter {
     IWETH9 public immutable wrappedToken;

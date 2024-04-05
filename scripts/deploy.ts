@@ -4,22 +4,7 @@ import {
     LooteryFactory__factory,
     Lootery__factory,
 } from '../typechain-types'
-
-interface Config {
-    [chainId: string]: {
-        anyrand: `0x${string}`
-    }
-}
-
-const config: Config = {
-    '8453': {
-        /** base mainnet; drand on BN254 v2 (SVDW) */
-        anyrand: '0xe3a8eca966457bfd7e0049543e07e8b691b3930e',
-    },
-    '666666666': {
-        anyrand: '0x9309bd93a8b662d315Ce0D43bb95984694F120Cb',
-    },
-}
+import { config } from './config'
 
 async function main() {
     const [deployer] = await ethers.getSigners()
