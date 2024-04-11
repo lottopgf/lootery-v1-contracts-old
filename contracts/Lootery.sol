@@ -527,15 +527,13 @@ contract Lootery is
             winningPickId: game.winningPickId
         });
 
-        address whomst;
-        uint8[] memory picks;
         uint256 numPicks_ = numPicks;
         uint256 maxBallValue_ = maxBallValue;
         uint256 startingTokenId = currentTokenId + 1;
         currentTokenId += ticketsCount;
         for (uint256 t; t < ticketsCount; ++t) {
-            whomst = tickets[t].whomst;
-            picks = tickets[t].picks;
+            address whomst = tickets[t].whomst;
+            uint8[] memory picks = tickets[t].picks;
 
             if (picks.length != numPicks_) {
                 revert InvalidNumPicks(picks.length);
@@ -564,6 +562,7 @@ contract Lootery is
         }
         // Effects
         for (uint256 t; t < ticketsCount; ++t) {
+            address whomst = tickets[t].whomst;
             _safeMint(whomst, startingTokenId + t);
         }
     }

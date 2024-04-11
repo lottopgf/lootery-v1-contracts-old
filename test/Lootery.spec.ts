@@ -18,7 +18,7 @@ import {
     LooteryETHAdapter__factory,
 } from '../typechain-types'
 import { SignerWithAddress } from '@nomicfoundation/hardhat-ethers/signers'
-import { BigNumberish, LogDescription, hexlify, parseEther } from 'ethers'
+import { BigNumberish, LogDescription, Wallet, ZeroAddress, hexlify, parseEther } from 'ethers'
 import { expect } from 'chai'
 import { deployProxy } from './helpers/deployProxy'
 import { encrypt } from '@kevincharm/gfc-fpe'
@@ -588,6 +588,42 @@ describe('Lootery', () => {
                 .withArgs(bob.address, parseEther('10'))
         })
     })
+
+    describe('Regression', () => {
+        it('mint tickets to correct purchasers', async () => {
+            async function deploy() {
+                return deployLotto({
+                    deployer,
+                    gamePeriod: 1n * 60n * 60n,
+                    prizeToken: testERC20,
+                })
+            }
+
+            const { lotto } = await loadFixture(deploy)
+            const numPicks = await lotto.numPicks()
+            const domain = await lotto.maxBallValue()
+
+            await testERC20.mint(deployer, parseEther('1000'))
+            await testERC20.approve(lotto, parseEther('1000'))
+
+            const randomAddresses = Array(10)
+                .fill(0)
+                .map((_) => Wallet.createRandom().address)
+            const purchaseTx = lotto.purchase(
+                randomAddresses.map((whomst) => ({
+                    picks: slikpik(numPicks, domain),
+                    whomst,
+                })),
+            )
+            for (let i = 0; i < randomAddresses.length; i++) {
+                const whomst = randomAddresses[i]
+                // Fixed bug that minted the NFT to only the last address in the list
+                expect(purchaseTx)
+                    .to.emit(lotto, 'Transfer')
+                    .withArgs(ZeroAddress, whomst, i + 1)
+            }
+        })
+    })
 })
 
 function keccak(balls: bigint[]) {
@@ -664,17 +700,7 @@ async function deployLotto({
     }
 }
 
-/**
- * Purchase a slikpik ticket. Lotto must be connected to an account
- * with enough funds to buy a ticket.
- * @param connectedLotto Lottery contract
- * @param whomst Who to mint the ticket to
- */
-async function slikpik(connectedLotto: Lootery, whomst: string) {
-    const numPicks = await connectedLotto.numPicks()
-    const domain = await connectedLotto.maxBallValue()
-    const ticketPrice = await connectedLotto.ticketPrice()
-    // Generate shuffled pick
+function slikpik(numPicks: bigint, domain: bigint) {
     const seed = BigInt(hexlify(crypto.getRandomValues(new Uint8Array(32))))
     const roundFn = (R: bigint, i: bigint, seed: bigint, domain: bigint) => {
         return BigInt(
@@ -690,6 +716,20 @@ async function slikpik(connectedLotto: Lootery, whomst: string) {
         picks.push(pick)
     }
     picks.sort((a, b) => Number(a - b))
+    return picks
+}
+
+/**
+ * Purchase a slikpik ticket. Lotto must be connected to an account
+ * with enough funds to buy a ticket.
+ * @param connectedLotto Lottery contract
+ * @param whomst Who to mint the ticket to
+ */
+async function buySlikpik(connectedLotto: Lootery, whomst: string) {
+    const numPicks = await connectedLotto.numPicks()
+    const domain = await connectedLotto.maxBallValue()
+    // Generate shuffled pick
+    const picks = slikpik(numPicks, domain)
     const tx = await connectedLotto
         .purchase([
             {
