@@ -218,6 +218,22 @@
     "inputs": [
       {
         "internalType": "uint256",
+        "name": "n",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "k",
+        "type": "uint256"
+      }
+    ],
+    "name": "InvalidChoose",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
         "name": "gamePeriod",
         "type": "uint256"
       }
@@ -283,12 +299,12 @@
     "inputs": [
       {
         "internalType": "uint256",
-        "name": "pickId",
+        "name": "pickSet",
         "type": "uint256"
       },
       {
         "internalType": "uint256",
-        "name": "winningPickId",
+        "name": "winningPickSet",
         "type": "uint256"
       }
     ],
@@ -900,9 +916,9 @@
         "type": "uint64"
       },
       {
-        "internalType": "uint256",
-        "name": "winningPickId",
-        "type": "uint256"
+        "internalType": "uint64",
+        "name": "numWinners",
+        "type": "uint64"
       }
     ],
     "stateMutability": "view",
@@ -935,6 +951,25 @@
         "internalType": "address",
         "name": "",
         "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "gameId",
+        "type": "uint256"
+      }
+    ],
+    "name": "getWinningPick",
+    "outputs": [
+      {
+        "internalType": "uint8[]",
+        "name": "",
+        "type": "uint8[]"
       }
     ],
     "stateMutability": "view",
@@ -1155,7 +1190,7 @@
           },
           {
             "internalType": "uint8[]",
-            "name": "picks",
+            "name": "pick",
             "type": "uint8[]"
           }
         ],
@@ -1167,6 +1202,30 @@
     "name": "ownerPick",
     "outputs": [],
     "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "gameId",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "pickSet",
+        "type": "uint256"
+      }
+    ],
+    "name": "pickSetCounts",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "count",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
     "type": "function"
   },
   {
@@ -1193,7 +1252,7 @@
           },
           {
             "internalType": "uint8[]",
-            "name": "picks",
+            "name": "pick",
             "type": "uint8[]"
           }
         ],
@@ -1220,11 +1279,6 @@
       {
         "internalType": "uint256",
         "name": "gameId",
-        "type": "uint256"
-      },
-      {
-        "internalType": "uint256",
-        "name": "pickId",
         "type": "uint256"
       }
     ],
@@ -1451,26 +1505,16 @@
     "inputs": [
       {
         "internalType": "uint256",
-        "name": "gameId",
-        "type": "uint256"
-      },
-      {
-        "internalType": "uint256",
-        "name": "id",
-        "type": "uint256"
-      },
-      {
-        "internalType": "uint256",
         "name": "",
         "type": "uint256"
       }
     ],
-    "name": "tokenByPickIdentity",
+    "name": "tierSharesBps",
     "outputs": [
       {
-        "internalType": "uint256",
+        "internalType": "uint64",
         "name": "",
-        "type": "uint256"
+        "type": "uint64"
       }
     ],
     "stateMutability": "view",
@@ -1529,6 +1573,40 @@
     "name": "transferOwnership",
     "outputs": [],
     "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "gameId",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "pickSet",
+        "type": "uint256"
+      }
+    ],
+    "name": "winningPickSetTiers",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "isPresent",
+        "type": "bool"
+      },
+      {
+        "internalType": "uint248",
+        "name": "tier",
+        "type": "uint248"
+      },
+      {
+        "internalType": "uint256",
+        "name": "numWinners",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
     "type": "function"
   },
   {

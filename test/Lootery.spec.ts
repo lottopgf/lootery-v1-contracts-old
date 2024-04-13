@@ -86,7 +86,7 @@ describe('Lootery', () => {
         await lotto.connect(bob).purchase([
             {
                 whomst: bob.address,
-                picks: losingTicket,
+                pick: losingTicket,
             },
         ])
         // Bob receives NFT ticket
@@ -111,9 +111,7 @@ describe('Lootery', () => {
         ) as unknown as [bigint, bigint[]]
         expect(emittedGameId).to.eq(0)
         expect(emittedBalls).to.deep.eq([1n, 3n, 32n, 53n, 69n])
-        expect(await lotto.gameData(emittedGameId).then((game) => game.winningPickId)).to.eq(
-            keccak(emittedBalls),
-        )
+        expect(await lotto.getWinningPick(emittedGameId)).to.deep.eq(keccak(emittedBalls))
 
         // Check that jackpot rolled over to next game
         expect(await lotto.currentGame().then((game) => game.id)).to.eq(1)
@@ -127,7 +125,7 @@ describe('Lootery', () => {
         await lotto.connect(bob).purchase([
             {
                 whomst: bob.address,
-                picks: winningTicket,
+                pick: winningTicket,
             },
         ])
         // Bob receives NFT ticket
@@ -152,9 +150,7 @@ describe('Lootery', () => {
         ) as unknown as [bigint, bigint[]]
         expect(emittedGameId).to.eq(1)
         expect(emittedBalls).to.deep.eq(winningTicket)
-        expect(await lotto.gameData(emittedGameId).then((game) => game.winningPickId)).to.eq(
-            keccak(emittedBalls),
-        )
+        expect(await lotto.getWinningPick(emittedGameId)).to.deep.eq(keccak(emittedBalls))
 
         // Bob claims entire pot
         const jackpot = await lotto.jackpot()
@@ -263,18 +259,18 @@ describe('Lootery', () => {
         const { lotto } = await loadFixture(deploy)
 
         const whomst = bob.address
-        const picks = [1, 2, 3, 4, 5]
+        const pick = [1, 2, 3, 4, 5]
 
         await expect(
             lotto.ownerPick([
                 {
                     whomst,
-                    picks,
+                    pick,
                 },
             ]),
         )
             .to.emit(lotto, 'TicketPurchased')
-            .withArgs(0, whomst, 1, picks)
+            .withArgs(0, whomst, 1, pick)
     })
 
     it('should let owner rescue tokens', async () => {
@@ -414,15 +410,15 @@ describe('Lootery', () => {
             expect(await lotto.apocalypseGameId()).to.eq(gameId + 1n)
 
             // Buy tickets
-            const picks: [string, number[]][] = [
+            const pick: [string, number[]][] = [
                 [bob.address, [1, 3, 32, 53, 69]],
                 [bob.address, [2, 3, 4, 5, 6]],
                 [alice.address, [3, 4, 5, 6, 7]],
                 [alice.address, [4, 5, 6, 7, 8]],
             ]
             const tickets: { owner: string; tokenId: bigint }[] = await Promise.all(
-                picks.map(async ([owner, pick]) => {
-                    const { tokenId } = await purchaseTicket(lotto, owner, pick)
+                pick.map(async ([owner, p]) => {
+                    const { tokenId } = await purchaseTicket(lotto, owner, p)
                     return {
                         owner,
                         tokenId,
@@ -484,15 +480,15 @@ describe('Lootery', () => {
             expect(await lotto.apocalypseGameId()).to.eq(gameId + 1n)
 
             // Buy tickets
-            const picks: [string, number[]][] = [
+            const pick: [string, number[]][] = [
                 [bob.address, [1, 2, 3, 4, 5]],
                 [bob.address, [2, 3, 4, 5, 6]],
                 [alice.address, [3, 4, 5, 6, 7]],
                 [alice.address, [4, 5, 6, 7, 8]],
             ]
             const tickets: { owner: string; tokenId: bigint }[] = await Promise.all(
-                picks.map(async ([owner, pick]) => {
-                    const { tokenId } = await purchaseTicket(lotto, owner, pick)
+                pick.map(async ([owner, p]) => {
+                    const { tokenId } = await purchaseTicket(lotto, owner, p)
                     return {
                         owner,
                         tokenId,
@@ -547,7 +543,7 @@ describe('Lootery', () => {
                     [
                         {
                             whomst: bob.address,
-                            picks: [1n, 2n, 3n, 4n, 5n],
+                            pick: [1n, 2n, 3n, 4n, 5n],
                         },
                     ],
                     { value: parseEther('1') },
@@ -559,7 +555,7 @@ describe('Lootery', () => {
                 [
                     {
                         whomst: bob.address,
-                        picks: [1n, 2n, 3n, 4n, 5n],
+                        pick: [1n, 2n, 3n, 4n, 5n],
                     },
                 ],
                 { value: parseEther('0.1') },
@@ -611,7 +607,7 @@ describe('Lootery', () => {
                 .map((_) => Wallet.createRandom().address)
             const purchaseTx = lotto.purchase(
                 randomAddresses.map((whomst) => ({
-                    picks: slikpik(numPicks, domain),
+                    pick: slikpik(numPicks, domain),
                     whomst,
                 })),
             )
@@ -710,13 +706,13 @@ function slikpik(numPicks: bigint, domain: bigint) {
             ),
         )
     }
-    const picks: bigint[] = []
+    const pick: bigint[] = []
     for (let i = 0; i < numPicks; i++) {
-        const pick = 1n + encrypt(BigInt(i), domain, seed, 4n, roundFn)
-        picks.push(pick)
+        const p = 1n + encrypt(BigInt(i), domain, seed, 4n, roundFn)
+        pick.push(p)
     }
-    picks.sort((a, b) => Number(a - b))
-    return picks
+    pick.sort((a, b) => Number(a - b))
+    return pick
 }
 
 /**
@@ -729,12 +725,13 @@ async function buySlikpik(connectedLotto: Lootery, whomst: string) {
     const numPicks = await connectedLotto.numPicks()
     const domain = await connectedLotto.maxBallValue()
     // Generate shuffled pick
-    const picks = slikpik(numPicks, domain)
+    const pick = slikpik(numPicks, domain)
+    pick.sort((a, b) => Number(a - b))
     const tx = await connectedLotto
         .purchase([
             {
                 whomst,
-                picks,
+                pick,
             },
         ])
         .then((tx) => tx.wait())
@@ -757,9 +754,9 @@ async function buySlikpik(connectedLotto: Lootery, whomst: string) {
  * @param whomst Who to mint the ticket to
  * @param picks Picks
  */
-async function purchaseTicket(connectedLotto: Lootery, whomst: string, picks: BigNumberish[]) {
+async function purchaseTicket(connectedLotto: Lootery, whomst: string, pick: BigNumberish[]) {
     const numPicks = await connectedLotto.numPicks()
-    if (picks.length !== Number(numPicks)) {
+    if (pick.length !== Number(numPicks)) {
         throw new Error(`Invalid number of picks (expected ${numPicks}, got picks.length)`)
     }
     const ticketPrice = await connectedLotto.ticketPrice()
@@ -767,7 +764,7 @@ async function purchaseTicket(connectedLotto: Lootery, whomst: string, picks: Bi
         .purchase([
             {
                 whomst,
-                picks,
+                pick,
             },
         ])
         .then((tx) => tx.wait())

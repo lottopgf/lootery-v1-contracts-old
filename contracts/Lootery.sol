@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.23;
 
+import {Combinations} from "./lib/Combinations.sol";
+import {BitSet} from "./lib/BitSet.sol";
 import {FeistelShuffleOptimised} from "./lib/FeistelShuffleOptimised.sol";
 import {Sort} from "./lib/Sort.sol";
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
@@ -8,6 +10,7 @@ import {ERC721Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC72
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import {IRandomiserCallback} from "./interfaces/IRandomiserCallback.sol";
 import {IAnyrand} from "./interfaces/IAnyrand.sol";
 
@@ -20,7 +23,9 @@ contract Lootery is
     ERC721Upgradeable
 {
     using Sort for uint8[];
+    using BitSet for uint256;
     using SafeERC20 for IERC20;
+    using EnumerableSet for EnumerableSet.UintSet;
 
     /// @notice Current state of the lootery
     enum GameState {
@@ -43,7 +48,7 @@ contract Lootery is
         address whomst;
         /// @notice Lotto numbers, pick wisely! Picks must be ASCENDINGLY
         ///     ORDERED, with NO DUPLICATES!
-        uint8[] picks;
+        uint8[] pick;
     }
 
     struct Game {
@@ -51,22 +56,29 @@ contract Lootery is
         uint64 ticketsSold;
         /// @notice Timestamp of when the game started
         uint64 startedAt;
-        /// @notice Winning pick identity, once it's been drawn
-        uint256 winningPickId;
+        /// @notice Number of winning tix, including ALL tiers
+        uint64 numWinners;
+        /// @notice Winning pick
+        uint8[] winningPick;
     }
 
     /// @notice An already-purchased ticket, assigned to a tokenId
     struct PurchasedTicket {
         /// @notice gameId that ticket is valid for
         uint256 gameId;
-        /// @notice Pick identity - see {Lootery-computePickIdentity}
-        uint256 pickId;
+        uint8[] pick;
     }
 
     /// @notice Describes an inflight randomness request
     struct RandomnessRequest {
         uint208 requestId;
         uint48 timestamp;
+    }
+
+    struct TierInfo {
+        bool isPresent;
+        uint248 tier;
+        uint256 numWinners;
     }
 
     /// @notice How many numbers must be picked per draw (and per ticket)
@@ -97,17 +109,23 @@ contract Lootery is
     RandomnessRequest public randomnessRequest;
     /// @notice token id => purchased ticked details (gameId, pickId)
     mapping(uint256 tokenId => PurchasedTicket) public purchasedTickets;
+    /// @notice Mapping of picksets to respective total count, separated by gameId
+    mapping(uint256 gameId => mapping(uint256 pickSet => uint256 count))
+        public pickSetCounts;
+    /// @notice Set of winning picks per game, mapped to tier
+    mapping(uint256 gameId => mapping(uint256 pickSet => TierInfo))
+        public winningPickSetTiers;
     /// @notice Game data
     mapping(uint256 gameId => Game) public gameData;
-    /// @notice Game id => pick identity => tokenIds
-    mapping(uint256 gameId => mapping(uint256 id => uint256[]))
-        public tokenByPickIdentity;
     /// @notice Accrued community fee share (wei)
     uint256 public accruedCommunityFees;
     /// @notice When nonzero, this gameId will be the last
     uint256 public apocalypseGameId;
     /// @notice Timestamp of when jackpot was last seeded
     uint256 public jackpotLastSeededAt;
+    /// @notice Array of tier shares (bps). Sum of all elements MUST add up to
+    ///     a maximum of 100_00 bps.
+    uint64[] public tierSharesBps;
 
     event TicketPurchased(
         uint256 indexed gameId,
@@ -149,7 +167,7 @@ contract Lootery is
     error CallerNotRandomiser(address caller);
     error RequestIdMismatch(uint256 actual, uint208 expected);
     error InsufficientRandomWords();
-    error NoWin(uint256 pickId, uint256 winningPickId);
+    error NoWin(uint256 pickSet, uint256 winningPickSet);
     error WaitLonger(uint256 deadline);
     error TicketsSoldOverflow(uint256 value);
     error InsufficientOperationalFunds(uint256 have, uint256 want);
@@ -207,11 +225,19 @@ contract Lootery is
 
         seedJackpotDelay = seedJackpotDelay_;
 
+        // TODO: This should be configurable, also:
+        // - sum of all elements must <= 100_00
+        // - cardinality must <= numPicks
+        tierSharesBps.push(12_80); //   tier 0 (5 balls)
+        tierSharesBps.push(10_00); //   tier 1 (4 balls)
+        tierSharesBps.push(5_00); //    tier 3 (3 balls)
+
         gameData[0] = Game({
             ticketsSold: 0,
             // The first game starts straight away
             startedAt: uint64(block.timestamp),
-            winningPickId: 0
+            numWinners: 0,
+            winningPick: new uint8[](numPicks)
         });
     }
 
@@ -249,14 +275,10 @@ contract Lootery is
     }
 
     /// @notice Compute the identity of an ordered set of numbers
-    function computePickIdentity(
-        uint8[] memory picks
-    ) internal pure returns (uint256 id) {
-        bytes memory packed = new bytes(picks.length);
-        for (uint256 i; i < picks.length; ++i) {
-            packed[i] = bytes1(picks[i]);
-        }
-        return uint256(keccak256(packed));
+    function getWinningPick(
+        uint256 gameId
+    ) external view returns (uint8[] memory) {
+        return gameData[gameId].winningPick;
     }
 
     /// @notice Compute the winning BALLS given a random seed
@@ -388,8 +410,36 @@ contract Lootery is
         uint248 gameId = currentGame.id;
         emit GameFinalised(gameId, balls);
 
-        // Record winning pick identity only (constant 32B)
-        gameData[gameId].winningPickId = computePickIdentity(balls);
+        // Sum number of winners including ALL tiers
+        uint256 numWinners;
+        uint256 numTiers = tierSharesBps.length;
+        for (uint256 tier; tier < numTiers; ++tier) {
+            // Generate combinations for this tier
+            uint8[][] memory combos = Combinations.genCombinations(
+                balls,
+                numPicks - tier
+            );
+            uint256 numWinnersInTier;
+            for (uint256 c; c < combos.length; ++c) {
+                uint256 comboPickSet = BitSet.from(combos[c]);
+                uint256 numComboWinners = pickSetCounts[gameId][comboPickSet];
+                numWinnersInTier += numComboWinners;
+                numWinners += numComboWinners;
+                winningPickSetTiers[gameId][comboPickSet] = TierInfo({
+                    isPresent: true,
+                    tier: uint248(tier),
+                    numWinners: numWinnersInTier
+                });
+            }
+        }
+        // Record number of winners & winning pick
+        Game memory game = gameData[gameId];
+        gameData[gameId] = Game({
+            ticketsSold: game.ticketsSold,
+            startedAt: game.startedAt,
+            numWinners: uint64(numWinners),
+            winningPick: balls
+        });
 
         // Ready for next game
         currentGame = CurrentGame({state: GameState.Purchase, id: gameId + 1});
@@ -398,7 +448,8 @@ contract Lootery is
         gameData[gameId + 1] = Game({
             ticketsSold: 0,
             startedAt: uint64(block.timestamp),
-            winningPickId: 0
+            numWinners: 0,
+            winningPick: new uint8[](numPicks)
         });
     }
 
@@ -418,14 +469,12 @@ contract Lootery is
         if (ticket.gameId != currentGameId - 1) {
             revert ClaimWindowMissed(tokenId);
         }
+        uint256 ticketPickSet = BitSet.from(ticket.pick);
 
         // Determine if the jackpot was won
         Game memory prevGame = gameData[ticket.gameId];
-        uint256 winningPickId = prevGame.winningPickId;
-        uint256 numWinners = tokenByPickIdentity[ticket.gameId][winningPickId]
-            .length;
-
-        if (numWinners == 0 && !isGameActive()) {
+        // Case 1: no winners in apocalypse mode
+        if (prevGame.numWinners == 0 && !isGameActive()) {
             // No jackpot winners, and game is no longer active!
             // Jackpot is shared between all tickets
             // Invariant: `ticketsSold[gameId] > 0`
@@ -434,21 +483,23 @@ contract Lootery is
             emit ConsolationClaimed(tokenId, ticket.gameId, whomst, prizeShare);
             return;
         }
-
-        if (winningPickId == ticket.pickId) {
-            // NB: `numWinners` != 0 in this path
-            // This ticket did have the winning numbers
-            uint256 prizeShare = jackpot / numWinners;
-            // Decrease current games jackpot by the claimed amount
+        // Case 2: there are winners, so check if ticket is a winner
+        TierInfo memory tierInfo = winningPickSetTiers[ticket.gameId][
+            ticketPickSet
+        ];
+        if (tierInfo.isPresent) {
+            // Calculate payout
+            uint256 tierShareBps = tierSharesBps[tierInfo.tier];
+            uint256 prizeShare = (jackpot * tierShareBps) /
+                (100_00 * tierInfo.numWinners);
+            // TODO: Check that this math works out
+            pickSetCounts[ticket.gameId][ticketPickSet] -= 1;
             jackpot -= prizeShare;
-            // Transfer share of jackpot to ticket holder
             _transferOrBust(whomst, prizeShare);
-
             emit WinningsClaimed(tokenId, ticket.gameId, whomst, prizeShare);
-            return;
         }
-
-        revert NoWin(ticket.pickId, winningPickId);
+        // Case 3: ticket is not a winner
+        revert NoWin(ticketPickSet, BitSet.from(prevGame.winningPick));
     }
 
     /// @notice Withdraw accrued community fees
@@ -524,7 +575,8 @@ contract Lootery is
         gameData[currentGameId] = Game({
             ticketsSold: game.ticketsSold + uint64(ticketsCount),
             startedAt: game.startedAt,
-            winningPickId: game.winningPickId
+            numWinners: game.numWinners,
+            winningPick: game.winningPick
         });
 
         uint256 numPicks_ = numPicks;
@@ -533,32 +585,43 @@ contract Lootery is
         currentTokenId += ticketsCount;
         for (uint256 t; t < ticketsCount; ++t) {
             address whomst = tickets[t].whomst;
-            uint8[] memory picks = tickets[t].picks;
+            uint8[] memory pick = tickets[t].pick;
 
-            if (picks.length != numPicks_) {
-                revert InvalidNumPicks(picks.length);
+            if (pick.length != numPicks_) {
+                revert InvalidNumPicks(pick.length);
             }
 
             // Assert picks are ascendingly sorted, with no possibility of duplicates
-            uint8 lastPick;
+            uint8 lastBall;
             for (uint256 i; i < numPicks_; ++i) {
-                uint8 pick = picks[i];
-                if (pick <= lastPick) revert UnsortedPicks(picks);
-                if (pick > maxBallValue_) revert InvalidBallValue(pick);
-                lastPick = pick;
+                uint8 ball = pick[i];
+                if (ball <= lastBall) revert UnsortedPicks(pick);
+                if (ball > maxBallValue_) revert InvalidBallValue(ball);
+                lastBall = ball;
             }
 
             // Record picked numbers
             uint256 tokenId = startingTokenId + t;
-            uint256 pickId = computePickIdentity(picks);
             purchasedTickets[tokenId] = PurchasedTicket({
                 gameId: currentGameId,
-                pickId: pickId
+                pick: pick
             });
 
-            // Account for this pick set
-            tokenByPickIdentity[currentGameId][pickId].push(tokenId);
-            emit TicketPurchased(currentGameId, whomst, tokenId, picks);
+            // Account for all combinations in all relevant tiers
+            uint256 numTiers = tierSharesBps.length;
+            for (uint256 m; m < numTiers; ++m) {
+                uint8[][] memory combos = Combinations.genCombinations(
+                    pick,
+                    numPicks - m
+                );
+                for (uint256 c; c < combos.length; ++c) {
+                    uint256 pickId = uint256(
+                        keccak256(abi.encodePacked(combos[c]))
+                    );
+                    pickSetCounts[currentGameId][pickId] += 1;
+                }
+            }
+            emit TicketPurchased(currentGameId, whomst, tokenId, pick);
         }
         // Effects
         for (uint256 t; t < ticketsCount; ++t) {
