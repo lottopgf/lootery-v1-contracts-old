@@ -23,71 +23,16 @@ const config: HardhatUserConfig = {
     },
     networks: {
         hardhat: {
-            chainId: 534351,
-            forking: {
-                enabled: true,
-                url: process.env.BASE_SEPOLIA_URL as string,
-                blockNumber: 1624600,
-            },
             blockGasLimit: 10_000_000,
             accounts: {
                 count: 10,
             },
-        },
-        base: {
-            chainId: 8453,
-            url: process.env.BASE_URL as string,
-            accounts: [process.env.MAINNET_PK as string],
-        },
-        baseSepolia: {
-            chainId: 84532,
-            url: process.env.BASE_SEPOLIA_URL as string,
-            accounts: [process.env.MAINNET_PK as string],
-        },
-        degen: {
-            chainId: 666666666,
-            url: process.env.DEGEN_URL as string,
-            accounts: [process.env.MAINNET_PK as string],
         },
     },
     gasReporter: {
         enabled: true,
         currency: 'USD',
         gasPrice: 1,
-    },
-    etherscan: {
-        apiKey: {
-            mainnet: process.env.ETHERSCAN_API_KEY as string,
-            base: process.env.BASESCAN_API_KEY as string,
-            baseSepolia: process.env.BASESCAN_API_KEY as string,
-            degen: 'abc', // blockscout
-        },
-        customChains: [
-            {
-                network: 'base',
-                chainId: 8453,
-                urls: {
-                    apiURL: 'https://api.basescan.org/api',
-                    browserURL: 'https://basescan.org',
-                },
-            },
-            {
-                network: 'baseSepolia',
-                chainId: 84532,
-                urls: {
-                    apiURL: 'https://base-sepolia.blockscout.com/api',
-                    browserURL: 'https://sepolia-explorer.base.org',
-                },
-            },
-            {
-                network: 'degen',
-                chainId: 666666666,
-                urls: {
-                    apiURL: 'https://explorer.degen.tips/api',
-                    browserURL: 'https://explorer.degen.tips',
-                },
-            },
-        ],
     },
     contractSizer: {
         alphaSort: true,
