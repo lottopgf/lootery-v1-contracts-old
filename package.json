@@ -6,7 +6,6 @@
     "deploy:gnosis": "yarn hardhat --config hardhat.config.gnosis.ts --network gnosis run scripts/deploy.ts",
     "deploy:basetestnet": "yarn hardhat --config hardhat.config.base.ts --network baseSepolia run scripts/deploy.ts",
     "deploy:degen": "yarn hardhat --config hardhat.config.degen.ts --network degen run scripts/deploy.ts",
-    "deploy:ethadapter:degen": "yarn hardhat --config hardhat.config.degen.ts --network degen run scripts/deployLooteryETHAdapter.ts",
     "test": "yarn hardhat --network hardhat test",
     "coverage": "yarn hardhat --network hardhat coverage"
   },
