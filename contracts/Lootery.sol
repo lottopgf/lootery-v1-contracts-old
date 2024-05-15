@@ -12,7 +12,30 @@ import {IRandomiserCallback} from "./interfaces/IRandomiserCallback.sol";
 import {IAnyrand} from "./interfaces/IAnyrand.sol";
 
 /// @title Lootery
-/// @notice Lotto the ultimate
+/// @notice Lootery is a number lottery contract where players can pick a
+///     configurable set of numbers/balls per ticket, similar to IRL lottos
+///     such as Powerball or EuroMillions. At the end of every round, a keeper
+///     may call the `draw` function to determine the winning set of numbers
+///     for that round. Then a new round is immediately started.
+///
+///     Any player with a winning ticket (i.e. their ticket's set of numbers is
+///     set-equal to the winning set of numbers) has one round to claim their
+///     winnings. Otherwise, the winnings are rolled back into the jackpot.
+///
+///     The lottery will run forever until the owner invokes *apocalypse mode*,
+///     which invokes a special rule for the current round: if no player wins
+///     the jackpot, then every ticket buyer from the current round may claim
+///     an equal share of the jackpot.
+///
+///     Players may permissionlessly buy tickets through the `purchase`
+///     function, paying a ticket price (in the form of `prizeToken`), where
+///     the proceeds are split into the jackpot and the community fee (this is
+///     configurable only at initialisation). Alternatively, the owner of the
+///     lottery contract may also distribute free tickets via the `ownerPick`
+///     function.
+///
+///     While the jackpot builds up over time, it is possible (and desirable)
+///     to seed the jackpot at any time using the `seedJackpot` function.
 contract Lootery is
     IRandomiserCallback,
     Initializable,
@@ -215,18 +238,24 @@ contract Lootery is
         });
     }
 
+    /// @notice Determine if game is active (in any playable state). If this
+    ///     returns `false`, it means that the lottery is no longer playable.
     function isGameActive() public view returns (bool) {
         uint256 apocalypseGameId_ = apocalypseGameId;
         return !(apocalypseGameId_ != 0 && currentGame.id >= apocalypseGameId_);
     }
 
+    /// @notice See {Lootery-isGameActive}
     function _assertGameIsActive() internal view {
         if (!isGameActive()) {
             revert GameInactive();
         }
     }
 
-    /// @notice Seed the jackpot
+    /// @notice Seed the jackpot.
+    /// @notice NB: This function is rate-limited by `jackpotLastSeededAt`!
+    /// @param value Amount of `prizeToken` to be taken from the caller and
+    ///     added to the jackpot.
     function seedJackpot(uint256 value) external {
         _assertGameIsActive();
         // We allow seeding jackpot during purchase phase only, so we don't
@@ -248,7 +277,10 @@ contract Lootery is
         emit JackpotSeeded(msg.sender, value);
     }
 
-    /// @notice Compute the identity of an ordered set of numbers
+    /// @notice Compute the identity of an ordered set of numbers.
+    /// @dev NB: DOES NOT check ordering of `picks`!
+    /// @param picks *Set* of numbers
+    /// @return id Identity (hash) of the set
     function computePickIdentity(
         uint8[] memory picks
     ) internal pure returns (uint256 id) {
@@ -259,8 +291,9 @@ contract Lootery is
         return uint256(keccak256(packed));
     }
 
-    /// @notice Compute the winning BALLS given a random seed
+    /// @notice Compute the winning numbers/balls given a random seed.
     /// @param randomSeed Seed that determines the permutation of BALLS
+    /// @return balls Ordered set of winning numbers
     function computeWinningBalls(
         uint256 randomSeed
     ) public view returns (uint8[] memory balls) {
@@ -364,6 +397,8 @@ contract Lootery is
         });
     }
 
+    /// @notice Callback for VRF fulfiller.
+    ///     See {IRandomiserCallback-receiveRandomWords}
     function receiveRandomWords(
         uint256 requestId,
         uint256[] calldata randomWords
@@ -402,7 +437,7 @@ contract Lootery is
         });
     }
 
-    /// @notice Claim a share of the jackpot with a winning ticket
+    /// @notice Claim a share of the jackpot with a winning ticket.
     /// @param tokenId Token id of the ticket (will be burnt)
     function claimWinnings(uint256 tokenId) external {
         address whomst = _ownerOf(tokenId);
@@ -451,19 +486,21 @@ contract Lootery is
         revert NoWin(ticket.pickId, winningPickId);
     }
 
-    /// @notice Withdraw accrued community fees
+    /// @notice Withdraw accrued community fees.
     function withdrawAccruedFees() external onlyOwner {
         uint256 totalAccrued = accruedCommunityFees;
         accruedCommunityFees = 0;
         _transferOrBust(msg.sender, totalAccrued);
     }
 
-    /// @notice Allow owner to pick tickets for free
+    /// @notice Allow owner to pick tickets for free.
+    /// @param tickets Tickets!
     function ownerPick(Ticket[] calldata tickets) external onlyOwner {
         _pickTickets(tickets, 0);
     }
 
-    /// @notice Set the next game as the last game of the lottery
+    /// @notice Set the next game as the last game of the lottery.
+    ///     aka invoke apocalypse mode.
     function kill() external onlyOwner {
         if (apocalypseGameId != 0) {
             // Already set
@@ -477,6 +514,7 @@ contract Lootery is
         apocalypseGameId = currentGame_.id + 1;
     }
 
+    /// @notice Withdraw any ETH (used for VRF requests).
     function rescueETH() external onlyOwner {
         (bool success, bytes memory data) = msg.sender.call{
             value: address(this).balance
@@ -486,7 +524,9 @@ contract Lootery is
         }
     }
 
-    /// @notice Allow owner to rescue any tokens sent to the contract; excluding jackpot and accrued fees
+    /// @notice Allow owner to rescue any tokens sent to the contract;
+    ///     excluding jackpot and accrued fees.
+    /// @param tokenAddress Address of token to withdraw
     function rescueTokens(address tokenAddress) external onlyOwner {
         uint256 amount = IERC20(tokenAddress).balanceOf(address(this));
         if (tokenAddress == prizeToken) {
@@ -496,7 +536,7 @@ contract Lootery is
         IERC20(tokenAddress).safeTransfer(msg.sender, amount);
     }
 
-    /// @notice Transfer via raw call; revert on failure
+    /// @notice Helper to transfer the `prizeToken`.
     /// @param to Address to transfer to
     /// @param value Value (in wei) to transfer
     function _transferOrBust(address to, uint256 value) internal {
@@ -504,6 +544,8 @@ contract Lootery is
     }
 
     /// @notice Pick tickets and increase jackpot
+    /// @param tickets Tickets!
+    /// @param jackpotShare Amount of jackpot fees generated from purchase.
     function _pickTickets(
         Ticket[] calldata tickets,
         uint256 jackpotShare
@@ -567,6 +609,7 @@ contract Lootery is
         }
     }
 
+    /// @dev The contract should be able to receive Ether to pay for VRF.
     receive() external payable {
         emit Received(msg.sender, msg.value);
     }
