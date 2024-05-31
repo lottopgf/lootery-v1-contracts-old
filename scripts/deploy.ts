@@ -1,49 +1,49 @@
-import { ethers, run } from 'hardhat'
-import {
-    ERC1967Proxy__factory,
-    LooteryFactory__factory,
-    Lootery__factory,
-} from '../typechain-types'
+import { ethers, ignition, run } from 'hardhat'
+import { LooteryFactory__factory } from '../typechain-types'
 import { config } from './config'
+import LooteryImplModule from '../ignition/modules/LooteryImpl'
+import LooteryFactoryModule from '../ignition/modules/LooteryFactory'
+import LooteryETHAdapterModule from '../ignition/modules/LooteryETHAdapter'
 
 async function main() {
-    const [deployer] = await ethers.getSigners()
     const chainId = await ethers.provider.getNetwork().then((network) => network.chainId)
-    const { anyrand } = config[chainId.toString() as keyof typeof config]
+    const { anyrand, weth } = config[chainId.toString() as keyof typeof config]
 
-    const looteryImpl = await new Lootery__factory(deployer)
-        .deploy()
-        .then((tx) => tx.waitForDeployment())
-    const factoryImpl = await new LooteryFactory__factory(deployer)
-        .deploy()
-        .then((tx) => tx.waitForDeployment())
-    const initData = LooteryFactory__factory.createInterface().encodeFunctionData('init', [
+    const { looteryImpl } = await ignition.deploy(LooteryImplModule)
+    const factoryInitData = LooteryFactory__factory.createInterface().encodeFunctionData('init', [
         await looteryImpl.getAddress(),
         anyrand,
     ])
-    const factoryProxyArgs: Parameters<ERC1967Proxy__factory['deploy']> = [
-        await factoryImpl.getAddress(),
-        initData,
-    ]
-    const factoryProxy = await new ERC1967Proxy__factory(deployer)
-        .deploy(...factoryProxyArgs)
-        .then((tx) => tx.waitForDeployment())
-    const factory = await LooteryFactory__factory.connect(await factoryProxy.getAddress(), deployer)
-    console.log(`LooteryFactory deployed at: ${await factory.getAddress()}`)
+    const { looteryFactoryProxy } = await ignition.deploy(LooteryFactoryModule, {
+        parameters: {
+            LooteryFactory: {
+                factoryInitData,
+            },
+        },
+    })
+    console.log(`LooteryFactory deployed at: ${await looteryFactoryProxy.getAddress()}`)
 
-    await new Promise((resolve) => setTimeout(resolve, 30_000))
-    await run('verify:verify', {
-        address: await looteryImpl.getAddress(),
-        constructorArguments: [],
+    // Periphery
+    const { looteryEthAdapter } = await ignition.deploy(LooteryETHAdapterModule, {
+        parameters: {
+            LooteryETHAdapter: {
+                weth,
+            },
+        },
     })
-    await run('verify:verify', {
-        address: await factoryImpl.getAddress(),
-        constructorArguments: [],
-    })
-    await run('verify:verify', {
-        address: await factoryProxy.getAddress(),
-        constructorArguments: factoryProxyArgs,
-    })
+    console.log(`LooteryETHAdapter deployed at: ${await looteryEthAdapter.getAddress()}`)
+
+    // Verify all
+    await run(
+        {
+            scope: 'ignition',
+            task: 'verify',
+        },
+        {
+            // Not sure this is stable, but works for now
+            deploymentId: `chain-${chainId.toString()}`,
+        },
+    )
 }
 
 main()

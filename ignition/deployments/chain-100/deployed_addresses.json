@@ -1,0 +1,6 @@
+{
+  "LooteryImpl#Lootery": "0xCb38Ea431bE5973115b009208C33445d31Cdd66C",
+  "LooteryFactory#LooteryFactory": "0xbFe810fBA072564cbB4fE345Cf6Ca3Ade206a61C",
+  "LooteryFactory#ERC1967Proxy": "0xf8dD8C2738aCE6eA4E48715b3b0fb5D74077Efb4",
+  "LooteryETHAdapter#LooteryETHAdapter": "0xc40A13B2bf11aEab219CB622E0A5678fcb347BFE"
+}
