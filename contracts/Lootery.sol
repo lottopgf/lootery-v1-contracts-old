@@ -12,7 +12,7 @@ import {IRandomiserCallback} from "./interfaces/IRandomiserCallback.sol";
 import {IAnyrand} from "./interfaces/IAnyrand.sol";
 
 /// @title Lootery
-/// @custom:version 1.0.0
+/// @custom:version 1.1.0
 /// @notice Lootery is a number lottery contract where players can pick a
 ///     configurable set of numbers/balls per ticket, similar to IRL lottos
 ///     such as Powerball or EuroMillions. At the end of every round, a keeper
