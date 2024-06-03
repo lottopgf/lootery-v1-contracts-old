@@ -84,26 +84,33 @@ contract LooteryFactory is UUPSUpgradeable, AccessControlUpgradeable {
     }
 
     /// @notice Launch your own lotto
-    /// @param name_ Name of the lotto (also used for ticket NFTs)
-    /// @param symbol_ Symbol of the lotto (used for ticket NFTs)
-    /// @param numPicks_ Number of balls that must be picked per draw
-    /// @param maxBallValue_ Maximum value that a picked ball can have
+    /// @param name Name of the lotto (also used for ticket NFTs)
+    /// @param symbol Symbol of the lotto (used for ticket NFTs)
+    /// @param numPicks Number of balls that must be picked per draw
+    /// @param maxBallValue Maximum value that a picked ball can have
     ///     (excludes 0)
-    /// @param gamePeriod_ The number of seconds that must pass before a draw
+    /// @param gamePeriod The number of seconds that must pass before a draw
     ///     can be initiated.
-    /// @param ticketPrice_ Price per ticket
-    /// @param communityFeeBps_ The percentage of the ticket price that should
+    /// @param ticketPrice Price per ticket
+    /// @param communityFeeBps The percentage of the ticket price that should
     ///     be taken and accrued for the lotto owner.
+    /// @param prizeToken The ERC-20 token that will be used as the prize token
+    ///     and also the token that will be used to pay for tickets.
+    /// @param seedJackpotDelay The number of seconds that must pass before the
+    ///     jackpot can be seeded again.
+    /// @param seedJackpotMinValue The minimum value that the jackpot must be
+    ///     seeded with.
     function create(
-        string memory name_,
-        string memory symbol_,
-        uint8 numPicks_,
-        uint8 maxBallValue_,
-        uint256 gamePeriod_,
-        uint256 ticketPrice_,
-        uint256 communityFeeBps_,
-        address prizeToken_,
-        uint256 seedJackpotDelay_
+        string memory name,
+        string memory symbol,
+        uint8 numPicks,
+        uint8 maxBallValue,
+        uint256 gamePeriod,
+        uint256 ticketPrice,
+        uint256 communityFeeBps,
+        address prizeToken,
+        uint256 seedJackpotDelay,
+        uint256 seedJackpotMinValue
     ) external returns (address) {
         uint256 nonce = NONCE_SLOT.getUint256Slot().value++;
         bytes32 salt = computeSalt(nonce);
@@ -117,24 +124,20 @@ contract LooteryFactory is UUPSUpgradeable, AccessControlUpgradeable {
         Lootery(looteryProxy).init(
             Lootery.InitConfig({
                 owner: msg.sender,
-                name: name_,
-                symbol: symbol_,
-                numPicks: numPicks_,
-                maxBallValue: maxBallValue_,
-                gamePeriod: gamePeriod_,
-                ticketPrice: ticketPrice_,
-                communityFeeBps: communityFeeBps_,
+                name: name,
+                symbol: symbol,
+                numPicks: numPicks,
+                maxBallValue: maxBallValue,
+                gamePeriod: gamePeriod,
+                ticketPrice: ticketPrice,
+                communityFeeBps: communityFeeBps,
                 randomiser: RANDOMISER_SLOT.getAddressSlot().value,
-                prizeToken: prizeToken_,
-                seedJackpotDelay: seedJackpotDelay_
+                prizeToken: prizeToken,
+                seedJackpotDelay: seedJackpotDelay,
+                seedJackpotMinValue: seedJackpotMinValue
             })
         );
-        emit LooteryLaunched(
-            looteryProxy,
-            looteryMasterCopy,
-            msg.sender,
-            name_
-        );
+        emit LooteryLaunched(looteryProxy, looteryMasterCopy, msg.sender, name);
         return looteryProxy;
     }
 }

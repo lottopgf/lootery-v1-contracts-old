@@ -186,6 +186,17 @@
     "inputs": [
       {
         "internalType": "uint256",
+        "name": "value",
+        "type": "uint256"
+      }
+    ],
+    "name": "InsufficientJackpotSeed",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
         "name": "have",
         "type": "uint256"
       },
@@ -266,6 +277,22 @@
       }
     ],
     "name": "InvalidRandomiser",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "delay",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "minValue",
+        "type": "uint256"
+      }
+    ],
+    "name": "InvalidSeedJackpotConfig",
     "type": "error"
   },
   {
@@ -998,6 +1025,11 @@
             "internalType": "uint256",
             "name": "seedJackpotDelay",
             "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "seedJackpotMinValue",
+            "type": "uint256"
           }
         ],
         "internalType": "struct Lootery.InitConfig",
@@ -1381,6 +1413,19 @@
   {
     "inputs": [],
     "name": "seedJackpotDelay",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "seedJackpotMinValue",
     "outputs": [
       {
         "internalType": "uint256",

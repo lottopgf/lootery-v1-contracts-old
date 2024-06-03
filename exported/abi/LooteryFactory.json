@@ -321,47 +321,52 @@
     "inputs": [
       {
         "internalType": "string",
-        "name": "name_",
+        "name": "name",
         "type": "string"
       },
       {
         "internalType": "string",
-        "name": "symbol_",
+        "name": "symbol",
         "type": "string"
       },
       {
         "internalType": "uint8",
-        "name": "numPicks_",
+        "name": "numPicks",
         "type": "uint8"
       },
       {
         "internalType": "uint8",
-        "name": "maxBallValue_",
+        "name": "maxBallValue",
         "type": "uint8"
       },
       {
         "internalType": "uint256",
-        "name": "gamePeriod_",
+        "name": "gamePeriod",
         "type": "uint256"
       },
       {
         "internalType": "uint256",
-        "name": "ticketPrice_",
+        "name": "ticketPrice",
         "type": "uint256"
       },
       {
         "internalType": "uint256",
-        "name": "communityFeeBps_",
+        "name": "communityFeeBps",
         "type": "uint256"
       },
       {
         "internalType": "address",
-        "name": "prizeToken_",
+        "name": "prizeToken",
         "type": "address"
       },
       {
         "internalType": "uint256",
-        "name": "seedJackpotDelay_",
+        "name": "seedJackpotDelay",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "seedJackpotMinValue",
         "type": "uint256"
       }
     ],

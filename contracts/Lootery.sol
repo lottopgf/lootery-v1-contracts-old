@@ -59,6 +59,7 @@ contract Lootery is
         address randomiser;
         address prizeToken;
         uint256 seedJackpotDelay;
+        uint256 seedJackpotMinValue;
     }
 
     /// @notice Current state of the lootery
@@ -125,6 +126,8 @@ contract Lootery is
     uint256 public communityFeeBps;
     /// @notice Minimum seconds to wait between seeding jackpot
     uint256 public seedJackpotDelay;
+    /// @notice Minimum value required when seeding jackpot
+    uint256 public seedJackpotMinValue;
 
     /// @dev Current token id
     uint256 private currentTokenId;
@@ -178,6 +181,7 @@ contract Lootery is
     error InvalidTicketPrice(uint256 ticketPrice);
     error InvalidRandomiser(address randomiser);
     error InvalidPrizeToken(address prizeToken);
+    error InvalidSeedJackpotConfig(uint256 delay, uint256 minValue);
     error IncorrectPaymentAmount(uint256 paid, uint256 expected);
     error UnsortedPicks(uint8[] picks);
     error InvalidBallValue(uint256 ballValue);
@@ -195,6 +199,7 @@ contract Lootery is
     error ClaimWindowMissed(uint256 tokenId);
     error GameInactive();
     error RateLimited(uint256 secondsToWait);
+    error InsufficientJackpotSeed(uint256 value);
 
     constructor() {
         _disableInitializers();
@@ -233,6 +238,13 @@ contract Lootery is
         prizeToken = initConfig.prizeToken;
 
         seedJackpotDelay = initConfig.seedJackpotDelay;
+        seedJackpotMinValue = initConfig.seedJackpotMinValue;
+        if (seedJackpotDelay == 0 || seedJackpotMinValue == 0) {
+            revert InvalidSeedJackpotConfig(
+                seedJackpotDelay,
+                seedJackpotMinValue
+            );
+        }
 
         gameData[0] = Game({
             ticketsSold: 0,
@@ -266,6 +278,11 @@ contract Lootery is
         // have to fuck around with accounting
         if (currentGame.state != GameState.Purchase) {
             revert UnexpectedState(currentGame.state, GameState.Purchase);
+        }
+
+        // Disallow seeding the jackpot with zero value
+        if (value < seedJackpotMinValue) {
+            revert InsufficientJackpotSeed(value);
         }
 
         // Rate limit seeding the jackpot
