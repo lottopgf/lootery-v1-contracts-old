@@ -12,6 +12,7 @@ import {IRandomiserCallback} from "./interfaces/IRandomiserCallback.sol";
 import {IAnyrand} from "./interfaces/IAnyrand.sol";
 
 /// @title Lootery
+/// @custom:version 1.0.0
 /// @notice Lootery is a number lottery contract where players can pick a
 ///     configurable set of numbers/balls per ticket, similar to IRL lottos
 ///     such as Powerball or EuroMillions. At the end of every round, a keeper
@@ -44,6 +45,21 @@ contract Lootery is
 {
     using Sort for uint8[];
     using SafeERC20 for IERC20;
+
+    /// @notice Initial configuration of Lootery
+    struct InitConfig {
+        address owner;
+        string name;
+        string symbol;
+        uint8 numPicks;
+        uint8 maxBallValue;
+        uint256 gamePeriod;
+        uint256 ticketPrice;
+        uint256 communityFeeBps;
+        address randomiser;
+        address prizeToken;
+        uint256 seedJackpotDelay;
+    }
 
     /// @notice Current state of the lootery
     enum GameState {
@@ -185,50 +201,38 @@ contract Lootery is
     }
 
     /// @notice Initialisoooooooor
-    function init(
-        address owner_,
-        string memory name_,
-        string memory symbol_,
-        uint8 numPicks_,
-        uint8 maxBallValue_,
-        uint256 gamePeriod_,
-        uint256 ticketPrice_,
-        uint256 communityFeeBps_,
-        address randomiser_,
-        address prizeToken_,
-        uint256 seedJackpotDelay_
-    ) public initializer {
-        __Ownable_init(owner_);
-        __ERC721_init(name_, symbol_);
+    function init(InitConfig memory initConfig) public initializer {
+        __Ownable_init(initConfig.owner);
+        __ERC721_init(initConfig.name, initConfig.symbol);
 
-        if (numPicks_ == 0) {
-            revert InvalidNumPicks(numPicks_);
+        if (initConfig.numPicks == 0) {
+            revert InvalidNumPicks(initConfig.numPicks);
         }
-        numPicks = numPicks_;
-        maxBallValue = maxBallValue_;
+        numPicks = initConfig.numPicks;
+        maxBallValue = initConfig.maxBallValue;
 
-        if (gamePeriod_ < 10 minutes) {
-            revert InvalidGamePeriod(gamePeriod_);
+        if (initConfig.gamePeriod < 10 minutes) {
+            revert InvalidGamePeriod(initConfig.gamePeriod);
         }
-        gamePeriod = gamePeriod_;
+        gamePeriod = initConfig.gamePeriod;
 
-        if (ticketPrice_ == 0) {
-            revert InvalidTicketPrice(ticketPrice_);
+        if (initConfig.ticketPrice == 0) {
+            revert InvalidTicketPrice(initConfig.ticketPrice);
         }
-        ticketPrice = ticketPrice_;
-        communityFeeBps = communityFeeBps_;
+        ticketPrice = initConfig.ticketPrice;
+        communityFeeBps = initConfig.communityFeeBps;
 
-        if (randomiser_ == address(0)) {
-            revert InvalidRandomiser(randomiser_);
+        if (initConfig.randomiser == address(0)) {
+            revert InvalidRandomiser(initConfig.randomiser);
         }
-        randomiser = randomiser_;
+        randomiser = initConfig.randomiser;
 
-        if (prizeToken_ == address(0)) {
-            revert InvalidPrizeToken(prizeToken_);
+        if (initConfig.prizeToken == address(0)) {
+            revert InvalidPrizeToken(initConfig.prizeToken);
         }
-        prizeToken = prizeToken_;
+        prizeToken = initConfig.prizeToken;
 
-        seedJackpotDelay = seedJackpotDelay_;
+        seedJackpotDelay = initConfig.seedJackpotDelay;
 
         gameData[0] = Game({
             ticketsSold: 0,

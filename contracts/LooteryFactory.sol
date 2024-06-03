@@ -115,17 +115,19 @@ contract LooteryFactory is UUPSUpgradeable, AccessControlUpgradeable {
             Clones.cloneDeterministic(looteryMasterCopy, salt)
         );
         Lootery(looteryProxy).init(
-            msg.sender,
-            name_,
-            symbol_,
-            numPicks_,
-            maxBallValue_,
-            gamePeriod_,
-            ticketPrice_,
-            communityFeeBps_,
-            RANDOMISER_SLOT.getAddressSlot().value,
-            prizeToken_,
-            seedJackpotDelay_
+            Lootery.InitConfig({
+                owner: msg.sender,
+                name: name_,
+                symbol: symbol_,
+                numPicks: numPicks_,
+                maxBallValue: maxBallValue_,
+                gamePeriod: gamePeriod_,
+                ticketPrice: ticketPrice_,
+                communityFeeBps: communityFeeBps_,
+                randomiser: RANDOMISER_SLOT.getAddressSlot().value,
+                prizeToken: prizeToken_,
+                seedJackpotDelay: seedJackpotDelay_
+            })
         );
         emit LooteryLaunched(
             looteryProxy,

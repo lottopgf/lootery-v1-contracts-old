@@ -943,59 +943,66 @@
   {
     "inputs": [
       {
-        "internalType": "address",
-        "name": "owner_",
-        "type": "address"
-      },
-      {
-        "internalType": "string",
-        "name": "name_",
-        "type": "string"
-      },
-      {
-        "internalType": "string",
-        "name": "symbol_",
-        "type": "string"
-      },
-      {
-        "internalType": "uint8",
-        "name": "numPicks_",
-        "type": "uint8"
-      },
-      {
-        "internalType": "uint8",
-        "name": "maxBallValue_",
-        "type": "uint8"
-      },
-      {
-        "internalType": "uint256",
-        "name": "gamePeriod_",
-        "type": "uint256"
-      },
-      {
-        "internalType": "uint256",
-        "name": "ticketPrice_",
-        "type": "uint256"
-      },
-      {
-        "internalType": "uint256",
-        "name": "communityFeeBps_",
-        "type": "uint256"
-      },
-      {
-        "internalType": "address",
-        "name": "randomiser_",
-        "type": "address"
-      },
-      {
-        "internalType": "address",
-        "name": "prizeToken_",
-        "type": "address"
-      },
-      {
-        "internalType": "uint256",
-        "name": "seedJackpotDelay_",
-        "type": "uint256"
+        "components": [
+          {
+            "internalType": "address",
+            "name": "owner",
+            "type": "address"
+          },
+          {
+            "internalType": "string",
+            "name": "name",
+            "type": "string"
+          },
+          {
+            "internalType": "string",
+            "name": "symbol",
+            "type": "string"
+          },
+          {
+            "internalType": "uint8",
+            "name": "numPicks",
+            "type": "uint8"
+          },
+          {
+            "internalType": "uint8",
+            "name": "maxBallValue",
+            "type": "uint8"
+          },
+          {
+            "internalType": "uint256",
+            "name": "gamePeriod",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "ticketPrice",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "communityFeeBps",
+            "type": "uint256"
+          },
+          {
+            "internalType": "address",
+            "name": "randomiser",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "prizeToken",
+            "type": "address"
+          },
+          {
+            "internalType": "uint256",
+            "name": "seedJackpotDelay",
+            "type": "uint256"
+          }
+        ],
+        "internalType": "struct Lootery.InitConfig",
+        "name": "initConfig",
+        "type": "tuple"
       }
     ],
     "name": "init",
