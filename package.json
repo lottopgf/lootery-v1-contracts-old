@@ -7,7 +7,7 @@
     "deploy:basetestnet": "yarn hardhat --config hardhat.config.base.ts --network baseSepolia run scripts/deploy.ts",
     "deploy:degen": "yarn hardhat --config hardhat.config.degen.ts --network degen run scripts/deploy.ts",
     "test": "yarn hardhat --network hardhat test",
-    "coverage": "yarn hardhat --network hardhat coverage"
+    "coverage": "yarn hardhat coverage"
   },
   "keywords": [],
   "author": "The LottoPGF Team",
@@ -37,7 +37,7 @@
     "hardhat-storage-layout-changes": "^0.1.2",
     "prettier": "^3.0.3",
     "prettier-plugin-solidity": "^1.1.3",
-    "solidity-coverage": "^0.8.1",
+    "solidity-coverage": "^0.8.12",
     "ts-node": "^10.9.1",
     "typechain": "^8.3.1",
     "typescript": "^5.2.2",
