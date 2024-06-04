@@ -1,0 +1,38 @@
+name: CI
+on: [push]
+
+jobs:
+  test:
+    name: hardhat tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout repo
+        uses: actions/checkout@v3
+        with:
+          submodules: true
+
+      - name: install node
+        uses: actions/setup-node@v3
+        with:
+          cache: yarn
+          node-version: 18
+
+      - name: install node deps
+        run: yarn install --frozen-lockfile
+
+      - name: check formatting
+        run: yarn format:check
+
+      - name: build
+        run: yarn build
+
+      - name: test
+        run: yarn test
+
+      - name: slither
+        uses: crytic/slither-action@v0.4.0
+        with:
+          node-version: 18
+          slither-version: 0.10.2
+          solc-version: 0.8.23
+          fail-on: none
