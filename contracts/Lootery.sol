@@ -314,12 +314,12 @@ contract Lootery is
     /// @return id Identity (hash) of the set
     function computePickIdentity(
         uint8[] memory picks
-    ) internal pure returns (uint256 id) {
-        bytes memory packed = new bytes(picks.length);
+    ) internal pure returns (uint256) {
+        uint256 id;
         for (uint256 i; i < picks.length; ++i) {
-            packed[i] = bytes1(picks[i]);
+            id |= uint256(1) << picks[i];
         }
-        return uint256(keccak256(packed));
+        return id;
     }
 
     /// @notice Compute the winning numbers/balls given a random seed.

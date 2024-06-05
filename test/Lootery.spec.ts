@@ -113,7 +113,7 @@ describe('Lootery', () => {
         expect(emittedGameId).to.eq(0)
         expect(emittedBalls).to.deep.eq([1n, 3n, 32n, 53n, 69n])
         expect(await lotto.gameData(emittedGameId).then((game) => game.winningPickId)).to.eq(
-            keccak(emittedBalls),
+            computePickId(emittedBalls),
         )
 
         // Check that jackpot rolled over to next game
@@ -154,7 +154,7 @@ describe('Lootery', () => {
         expect(emittedGameId).to.eq(1)
         expect(emittedBalls).to.deep.eq(winningTicket)
         expect(await lotto.gameData(emittedGameId).then((game) => game.winningPickId)).to.eq(
-            keccak(emittedBalls),
+            computePickId(emittedBalls),
         )
 
         // Bob claims entire pot
@@ -679,11 +679,8 @@ describe('Lootery', () => {
     })
 })
 
-function keccak(balls: bigint[]) {
-    return ethers.solidityPackedKeccak256(
-        balls.map((_) => 'uint8'),
-        balls,
-    )
+function computePickId(picks: bigint[]) {
+    return picks.reduce((id, pick) => id | (1n << pick), 0n)
 }
 
 async function deployLotto({
