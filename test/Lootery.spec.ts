@@ -70,6 +70,7 @@ describe('Lootery', () => {
             5000, // 50%,
             testERC20,
             3600, // 1 hour
+            parseEther('1'),
         )
 
         // Allow seeding jackpot
@@ -380,6 +381,52 @@ describe('Lootery', () => {
         expect(await testERC20.balanceOf(await lotto.getAddress())).to.eq(parseEther('200'))
     })
 
+    it('should enforce minimum seed jackpot value', async () => {
+        async function deploy() {
+            return deployLotto({
+                deployer,
+                gamePeriod: 86400n,
+                prizeToken: testERC20,
+                seedJackpotDelay: 3600n /** 1h */,
+                shouldSkipSeedJackpot: true,
+                seedJackpotMinValue: parseEther('10'),
+            })
+        }
+        const { lotto } = await loadFixture(deploy)
+
+        await testERC20.mint(deployer.address, parseEther('10000'))
+        await testERC20.approve(await lotto.getAddress(), (1n << 256n) - 1n)
+        await expect(lotto.seedJackpot(parseEther('0'))).to.be.revertedWithCustomError(
+            lotto,
+            'InsufficientJackpotSeed',
+        )
+        await expect(lotto.seedJackpot(parseEther('1'))).to.be.revertedWithCustomError(
+            lotto,
+            'InsufficientJackpotSeed',
+        )
+        await expect(lotto.seedJackpot(parseEther('9.999'))).to.be.revertedWithCustomError(
+            lotto,
+            'InsufficientJackpotSeed',
+        )
+        await lotto.seedJackpot(parseEther('10'))
+
+        // Wait 1h
+        await time.increase(3600)
+        await expect(lotto.seedJackpot(parseEther('0'))).to.be.revertedWithCustomError(
+            lotto,
+            'InsufficientJackpotSeed',
+        )
+        await expect(lotto.seedJackpot(parseEther('1'))).to.be.revertedWithCustomError(
+            lotto,
+            'InsufficientJackpotSeed',
+        )
+        await expect(lotto.seedJackpot(parseEther('9.999'))).to.be.revertedWithCustomError(
+            lotto,
+            'InsufficientJackpotSeed',
+        )
+        await lotto.seedJackpot(parseEther('11'))
+    })
+
     describe('Apocalypse', () => {
         it('distributes to winner only when there is a winner', async () => {
             const gamePeriod = 1n * 60n * 60n
@@ -538,6 +585,7 @@ describe('Lootery', () => {
                 5000, // 50%,
                 weth9,
                 3600, // 1 hour
+                parseEther('1'),
             )
             const looteryETHAdapter = await new LooteryETHAdapter__factory(deployer).deploy(weth9)
 
@@ -578,6 +626,7 @@ describe('Lootery', () => {
                 5000, // 50%,
                 weth9,
                 3600, // 1 hour
+                parseEther('1'),
             )
             const looteryETHAdapter = await new LooteryETHAdapter__factory(deployer).deploy(weth9)
 
@@ -639,6 +688,7 @@ async function deployLotto({
     prizeToken,
     seedJackpotDelay,
     shouldSkipSeedJackpot,
+    seedJackpotMinValue,
 }: {
     deployer: SignerWithAddress
     /** seconds */
@@ -647,23 +697,33 @@ async function deployLotto({
     /** seconds */
     seedJackpotDelay?: bigint
     shouldSkipSeedJackpot?: boolean
+    seedJackpotMinValue?: bigint
 }) {
     const mockRandomiser = await new MockRandomiser__factory(deployer).deploy()
     const lotto = await deployProxy({
         deployer,
         implementation: Lootery__factory,
         initData: await Lootery__factory.createInterface().encodeFunctionData('init', [
-            deployer.address,
-            'Lotto',
-            'LOTTO',
-            5,
-            69,
-            gamePeriod,
-            parseEther('0.1'),
-            5000, // 50%
-            await mockRandomiser.getAddress(),
-            await prizeToken.getAddress(),
-            typeof seedJackpotDelay === 'undefined' ? 3600 : seedJackpotDelay /** default to 1h */,
+            {
+                owner: deployer.address,
+                name: 'Lotto',
+                symbol: 'LOTTO',
+                numPicks: 5,
+                maxBallValue: 69,
+                gamePeriod,
+                ticketPrice: parseEther('0.1'),
+                communityFeeBps: 5000, // 50%
+                randomiser: await mockRandomiser.getAddress(),
+                prizeToken: await prizeToken.getAddress(),
+                seedJackpotDelay:
+                    typeof seedJackpotDelay === 'undefined'
+                        ? 3600
+                        : seedJackpotDelay /** default to 1h */,
+                seedJackpotMinValue:
+                    typeof seedJackpotMinValue === 'undefined'
+                        ? parseEther('1')
+                        : seedJackpotMinValue,
+            },
         ]),
     })
 
