@@ -158,7 +158,7 @@ describe('Lootery', () => {
         )
 
         // Bob claims entire pot
-        const jackpot = await lotto.jackpot()
+        const jackpot = await lotto.unclaimedPayouts()
         expect(jackpot).to.eq(parseEther('10.1'))
         const balanceBefore = await testERC20.balanceOf(bob.address)
         await expect(lotto.claimWinnings(2))
@@ -195,27 +195,31 @@ describe('Lootery', () => {
 
         const { tokenId: bobTokenId } = await purchaseTicket(lotto, bob.address, winningTicket)
         const { tokenId: aliceTokenId } = await purchaseTicket(lotto, alice.address, winningTicket)
+        expect(await lotto.jackpot()).to.eq(parseEther('10.1'))
 
         await fastForwardAndDraw(6942069420n)
 
         // Current jackpot + 2 tickets
-        expect(await lotto.jackpot()).to.be.eq(parseEther('10.1'))
+        expect(await lotto.unclaimedPayouts()).to.be.eq(parseEther('10.1'))
+        expect(await lotto.jackpot()).to.eq(0)
 
         // Alice claims prize
         await lotto.claimWinnings(aliceTokenId)
 
-        // Current jackpot is reduced
-        expect(await lotto.jackpot()).to.be.eq(parseEther('5.05'))
+        // Unclaimed payouts is reduced
+        expect(await lotto.unclaimedPayouts()).to.be.eq(parseEther('5.05'))
+        expect(await lotto.jackpot()).to.eq(0)
 
         // Balance is half of jackpot + 2 tickets
         expect(await testERC20.balanceOf(lotto)).to.be.eq(parseEther('5.15'))
 
-        // Advance 1 round
+        // Advance 1 round (skip draw)
         await time.increase(gamePeriod)
         await lotto.draw()
 
-        // Half of round 1 jackpot
-        expect(await lotto.jackpot()).to.be.eq(parseEther('5.05'))
+        // Unclaimed payouts rolled over to jackpot
+        expect(await lotto.unclaimedPayouts()).to.be.eq(0)
+        expect(await lotto.jackpot()).to.eq(parseEther('5.05'))
 
         // Bob can't claim anymore
         await expect(lotto.claimWinnings(bobTokenId)).to.be.revertedWithCustomError(
@@ -492,10 +496,10 @@ describe('Lootery', () => {
             ).to.be.revertedWithCustomError(lotto, 'GameInactive')
 
             // Bob has the winning ticket
-            const jackpot = await lotto.jackpot()
+            const unclaimedPayouts = await lotto.unclaimedPayouts()
             const balanceBefore = await testERC20.balanceOf(bob.address)
             await lotto.claimWinnings(tickets[0].tokenId)
-            expect(await testERC20.balanceOf(bob.address)).to.eq(balanceBefore + jackpot)
+            expect(await testERC20.balanceOf(bob.address)).to.eq(balanceBefore + unclaimedPayouts)
         })
 
         it('distributes to everyone when there are no winners', async () => {
@@ -562,8 +566,8 @@ describe('Lootery', () => {
             ).to.be.revertedWithCustomError(lotto, 'GameInactive')
 
             // No winners -> each ticket claims share of jackpot
-            const jackpot = await lotto.jackpot()
-            const expectedShare = jackpot / BigInt(tickets.length)
+            const unclaimedPayouts = await lotto.unclaimedPayouts()
+            const expectedShare = unclaimedPayouts / BigInt(tickets.length)
             for (const ticket of tickets) {
                 const balanceBefore = await testERC20.balanceOf(ticket.owner)
                 await lotto.claimWinnings(ticket.tokenId)
