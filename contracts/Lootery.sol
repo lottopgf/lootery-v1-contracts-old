@@ -135,6 +135,9 @@ contract Lootery is
     CurrentGame public currentGame;
     /// @notice Running jackpot
     uint256 public jackpot;
+    /// @notice Unclaimed jackpot payouts from previous game; will be rolled
+    ///     over if not claimed in current game
+    uint256 public unclaimedPayouts;
     /// @notice Current random request details
     RandomnessRequest public randomnessRequest;
     /// @notice token id => purchased ticked details (gameId, pickId)
@@ -200,6 +203,13 @@ contract Lootery is
     error GameInactive();
     error RateLimited(uint256 secondsToWait);
     error InsufficientJackpotSeed(uint256 value);
+    event JackpotRollover(
+        uint256 indexed gameId,
+        uint256 unclaimedPayouts,
+        uint256 currentJackpot,
+        uint256 nextUnclaimedPayouts,
+        uint256 nextJackpot
+    );
 
     constructor() {
         _disableInitializers();
@@ -304,12 +314,12 @@ contract Lootery is
     /// @return id Identity (hash) of the set
     function computePickIdentity(
         uint8[] memory picks
-    ) internal pure returns (uint256 id) {
-        bytes memory packed = new bytes(picks.length);
+    ) internal pure returns (uint256) {
+        uint256 id;
         for (uint256 i; i < picks.length; ++i) {
-            packed[i] = bytes1(picks[i]);
+            id |= uint256(1) << picks[i];
         }
-        return uint256(keccak256(packed));
+        return id;
     }
 
     /// @notice Compute the winning numbers/balls given a random seed.
@@ -379,6 +389,20 @@ contract Lootery is
                 state: GameState.Purchase, // redundant, but inconsequential
                 id: nextGameId
             });
+            // Rollover unclaimed payouts and jackpot
+            uint256 currentUnclaimedPayouts = unclaimedPayouts;
+            uint256 currentJackpot = jackpot;
+            uint256 nextJackpot = currentUnclaimedPayouts + currentJackpot;
+            uint256 nextUnclaimedPayouts = 0;
+            jackpot = nextJackpot;
+            unclaimedPayouts = nextUnclaimedPayouts;
+            emit JackpotRollover(
+                currentGame_.id,
+                currentUnclaimedPayouts,
+                currentJackpot,
+                nextUnclaimedPayouts,
+                nextJackpot
+            );
             emit DrawSkipped(currentGame_.id);
             return;
         }
@@ -445,22 +469,62 @@ contract Lootery is
         emit GameFinalised(gameId, balls);
 
         // Record winning pick identity only (constant 32B)
-        gameData[gameId].winningPickId = computePickIdentity(balls);
+        uint256 winningPickId = computePickIdentity(balls);
+        gameData[gameId].winningPickId = winningPickId;
 
         // Ready for next game
         currentGame = CurrentGame({state: GameState.Purchase, id: gameId + 1});
 
-        // Set up next game; roll over jackpot
+        // Set up next game
         gameData[gameId + 1] = Game({
             ticketsSold: 0,
             startedAt: uint64(block.timestamp),
             winningPickId: 0
         });
+
+        // Roll over jackpot if no winner
+        uint256 numWinners = tokenByPickIdentity[gameId][winningPickId].length;
+        uint256 currentUnclaimedPayouts = unclaimedPayouts;
+        uint256 currentJackpot = jackpot;
+        if (numWinners == 0) {
+            // No winners, current jackpot and unclaimed payouts are rolled
+            // over to the next game
+            uint256 nextJackpot = currentUnclaimedPayouts + currentJackpot;
+            uint256 nextUnclaimedPayouts = 0;
+            jackpot = nextJackpot;
+            unclaimedPayouts = 0;
+            emit JackpotRollover(
+                gameId,
+                currentUnclaimedPayouts,
+                currentJackpot,
+                nextUnclaimedPayouts,
+                nextJackpot
+            );
+        } else {
+            // Winners! Jackpot resets to zero for next game, and current
+            // jackpot goes into unclaimed payouts
+            uint256 nextUnclaimedPayouts = currentJackpot;
+            unclaimedPayouts = nextUnclaimedPayouts;
+            jackpot = 0;
+            emit JackpotRollover(
+                gameId,
+                currentUnclaimedPayouts,
+                currentJackpot,
+                nextUnclaimedPayouts,
+                0
+            );
+        }
     }
 
     /// @notice Claim a share of the jackpot with a winning ticket.
     /// @param tokenId Token id of the ticket (will be burnt)
     function claimWinnings(uint256 tokenId) external {
+        // Only allow claims during purchase phase so we don't have to deal
+        // with intermediate states between gameIds
+        if (currentGame.state != GameState.Purchase) {
+            revert UnexpectedState(currentGame.state, GameState.Purchase);
+        }
+
         address whomst = _ownerOf(tokenId);
         if (whomst == address(0)) {
             revert ERC721NonexistentToken(tokenId);
@@ -476,8 +540,8 @@ contract Lootery is
         }
 
         // Determine if the jackpot was won
-        Game memory prevGame = gameData[ticket.gameId];
-        uint256 winningPickId = prevGame.winningPickId;
+        Game memory game = gameData[ticket.gameId];
+        uint256 winningPickId = game.winningPickId;
         uint256 numWinners = tokenByPickIdentity[ticket.gameId][winningPickId]
             .length;
 
@@ -485,7 +549,7 @@ contract Lootery is
             // No jackpot winners, and game is no longer active!
             // Jackpot is shared between all tickets
             // Invariant: `ticketsSold[gameId] > 0`
-            uint256 prizeShare = jackpot / prevGame.ticketsSold;
+            uint256 prizeShare = unclaimedPayouts / game.ticketsSold;
             _transferOrBust(whomst, prizeShare);
             emit ConsolationClaimed(tokenId, ticket.gameId, whomst, prizeShare);
             return;
@@ -494,9 +558,9 @@ contract Lootery is
         if (winningPickId == ticket.pickId) {
             // NB: `numWinners` != 0 in this path
             // This ticket did have the winning numbers
-            uint256 prizeShare = jackpot / numWinners;
-            // Decrease current games jackpot by the claimed amount
-            jackpot -= prizeShare;
+            uint256 prizeShare = unclaimedPayouts / numWinners;
+            // Decrease unclaimed payouts by the amount just claimed
+            unclaimedPayouts -= prizeShare;
             // Transfer share of jackpot to ticket holder
             _transferOrBust(whomst, prizeShare);
 
@@ -551,7 +615,12 @@ contract Lootery is
     function rescueTokens(address tokenAddress) external onlyOwner {
         uint256 amount = IERC20(tokenAddress).balanceOf(address(this));
         if (tokenAddress == prizeToken) {
-            amount = amount - accruedCommunityFees - jackpot;
+            // TODO: This no longer works if we don't limit claiming jackpot
+            // to last game only
+            // 1. Limit claiming jackpot to last game only and rollover
+            //  jackpot from 2 games ago if unclaimed (during finalisation)
+            // 2. Count total locked as jackpot (+20k gas every ticket)
+            amount = amount - accruedCommunityFees - unclaimedPayouts - jackpot;
         }
 
         IERC20(tokenAddress).safeTransfer(msg.sender, amount);
