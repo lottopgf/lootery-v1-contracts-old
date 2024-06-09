@@ -408,27 +408,8 @@ contract Lootery is
         // Assert that there are actually tickets sold in this game
         // slither-disable-next-line incorrect-equality
         if (game.ticketsSold == 0) {
-            // Case #1: No tickets sold; just transition to the next game
-            uint248 nextGameId = currentGame_.id + 1;
-            currentGame = CurrentGame({
-                state: GameState.Purchase, // redundant, but inconsequential
-                id: nextGameId
-            });
-            // Rollover unclaimed payouts and jackpot
-            uint256 currentUnclaimedPayouts = unclaimedPayouts;
-            uint256 currentJackpot = jackpot;
-            uint256 nextJackpot = currentUnclaimedPayouts + currentJackpot;
-            uint256 nextUnclaimedPayouts = 0;
-            jackpot = nextJackpot;
-            unclaimedPayouts = nextUnclaimedPayouts;
-            emit JackpotRollover(
-                currentGame_.id,
-                currentUnclaimedPayouts,
-                currentJackpot,
-                nextUnclaimedPayouts,
-                nextJackpot
-            );
             emit DrawSkipped(currentGame_.id);
+            _setupNextGame();
             return;
         }
 
@@ -488,26 +469,24 @@ contract Lootery is
             revert InsufficientRandomWords();
         }
 
-        // Pick numbers
+        // Pick winning numbers
         uint8[] memory balls = computeWinningBalls(randomWords[0]);
         uint248 gameId = currentGame.id;
         emit GameFinalised(gameId, balls);
 
-        // Record winning pick identity only (constant 32B)
+        // Record winning pick bitset
         uint256 winningPickId = computePickIdentity(balls);
         gameData[gameId].winningPickId = winningPickId;
 
-        // Ready for next game
-        currentGame = CurrentGame({state: GameState.Purchase, id: gameId + 1});
+        _setupNextGame();
+    }
 
-        // Set up next game
-        gameData[gameId + 1] = Game({
-            ticketsSold: 0,
-            startedAt: uint64(block.timestamp),
-            winningPickId: 0
-        });
-
+    /// @dev Transition to next game, locking and/or rolling over any jackpots
+    ///     as necessary.
+    function _setupNextGame() internal {
+        uint248 gameId = currentGame.id;
         // Roll over jackpot if no winner
+        uint256 winningPickId = gameData[gameId].winningPickId;
         uint256 numWinners = tokenByPickIdentity[gameId][winningPickId].length;
         uint256 currentUnclaimedPayouts = unclaimedPayouts;
         uint256 currentJackpot = jackpot;
@@ -539,6 +518,16 @@ contract Lootery is
                 0
             );
         }
+
+        // Ready for next game
+        currentGame = CurrentGame({state: GameState.Purchase, id: gameId + 1});
+
+        // Set up next game
+        gameData[gameId + 1] = Game({
+            ticketsSold: 0,
+            startedAt: uint64(block.timestamp),
+            winningPickId: 0
+        });
     }
 
     /// @notice Claim a share of the jackpot with a winning ticket.
