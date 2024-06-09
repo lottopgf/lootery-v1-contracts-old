@@ -190,6 +190,13 @@ contract Lootery is
         uint256 nextUnclaimedPayouts,
         uint256 nextJackpot
     );
+    event GasRefundAttempted(
+        address indexed to,
+        uint256 value,
+        uint256 gasUsed,
+        uint256 gasPrice,
+        bool success
+    );
 
     error TransferFailure(address to, uint256 value, bytes reason);
     error InvalidNumPicks(uint256 numPicks);
@@ -391,6 +398,7 @@ contract Lootery is
     /// @notice Draw numbers, picking potential jackpot winners and ending the
     ///     current game. This should be automated by a keeper.
     function draw() external {
+        uint256 gasUsed = gasleft();
         _assertGameIsActive();
         // Assert game is still playable
         // Assert we're in the correct state
@@ -408,44 +416,71 @@ contract Lootery is
         // Assert that there are actually tickets sold in this game
         // slither-disable-next-line incorrect-equality
         if (game.ticketsSold == 0) {
+            // Case #1: No tickets were sold, just skip the game
             emit DrawSkipped(currentGame_.id);
             _setupNextGame();
-            return;
+        } else {
+            // Case #2: Tickets were sold
+            currentGame.state = GameState.DrawPending;
+            // Assert there's not already a request inflight, unless some
+            // reasonable amount of time has already passed
+            RandomnessRequest memory randReq = randomnessRequest;
+            if (
+                randReq.requestId != 0 &&
+                (block.timestamp <= (randReq.timestamp + 1 hours))
+            ) {
+                revert RequestAlreadyInFlight(
+                    randReq.requestId,
+                    randReq.timestamp
+                );
+            }
+
+            // Assert that we have enough in operational funds so as to not eat
+            // into jackpots or whatever else.
+            uint256 requestPrice = IAnyrand(randomiser).getRequestPrice(
+                500_000
+            );
+            if (address(this).balance < requestPrice) {
+                revert InsufficientOperationalFunds(
+                    address(this).balance,
+                    requestPrice
+                );
+            }
+            // VRF call to trusted coordinator
+            // slither-disable-next-line reentrancy-eth,arbitrary-send-eth
+            uint256 requestId = IAnyrand(randomiser).requestRandomness{
+                value: requestPrice
+            }(block.timestamp + 30, 500_000);
+            if (requestId > type(uint208).max) {
+                revert RequestIdOverflow(requestId);
+            }
+            randomnessRequest = RandomnessRequest({
+                requestId: uint208(requestId),
+                timestamp: uint48(block.timestamp)
+            });
         }
 
-        // Case #2: Tickets were sold
-        currentGame.state = GameState.DrawPending;
-        // Assert there's not already a request inflight, unless some
-        // reasonable amount of time has already passed
-        RandomnessRequest memory randReq = randomnessRequest;
-        if (
-            randReq.requestId != 0 &&
-            (block.timestamp <= (randReq.timestamp + 1 hours))
-        ) {
-            revert RequestAlreadyInFlight(randReq.requestId, randReq.timestamp);
-        }
-
-        // Assert that we have enough in operational funds so as to not eat
-        // into jackpots or whatever else.
-        uint256 requestPrice = IAnyrand(randomiser).getRequestPrice(500_000);
-        if (address(this).balance < requestPrice) {
+        // Refund gas to caller (+10% bounty)
+        gasUsed -= gasleft();
+        gasUsed += 21_000 + 9000; // total gas <100k
+        // Cap gas refund
+        gasUsed = gasUsed > 150_000 ? 150_000 : gasUsed;
+        // Everything below this line costs an additional ~9000 gas
+        uint256 gasRefund = ((gasUsed * tx.gasprice) * 1.1e4) / 1e4;
+        if (address(this).balance < gasRefund) {
             revert InsufficientOperationalFunds(
-                accruedCommunityFees,
-                requestPrice
+                address(this).balance,
+                gasRefund
             );
         }
-        // VRF call to trusted coordinator
-        // slither-disable-next-line reentrancy-eth,arbitrary-send-eth
-        uint256 requestId = IAnyrand(randomiser).requestRandomness{
-            value: requestPrice
-        }(block.timestamp + 30, 500_000);
-        if (requestId > type(uint208).max) {
-            revert RequestIdOverflow(requestId);
-        }
-        randomnessRequest = RandomnessRequest({
-            requestId: uint208(requestId),
-            timestamp: uint48(block.timestamp)
-        });
+        (bool success, ) = msg.sender.call{value: gasRefund}("");
+        emit GasRefundAttempted(
+            msg.sender,
+            gasRefund,
+            gasUsed,
+            tx.gasprice,
+            success
+        );
     }
 
     /// @notice Callback for VRF fulfiller.
