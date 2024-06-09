@@ -8,8 +8,10 @@ import {ERC721Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC72
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 import {IRandomiserCallback} from "./interfaces/IRandomiserCallback.sol";
 import {IAnyrand} from "./interfaces/IAnyrand.sol";
+import {TicketSVGRenderer} from "./lib/TicketSVGRenderer.sol";
 
 /// @title Lootery
 /// @custom:version 1.1.0
@@ -45,6 +47,7 @@ contract Lootery is
 {
     using Sort for uint8[];
     using SafeERC20 for IERC20;
+    using Strings for uint256;
 
     /// @notice Initial configuration of Lootery
     struct InitConfig {
@@ -60,6 +63,7 @@ contract Lootery is
         address prizeToken;
         uint256 seedJackpotDelay;
         uint256 seedJackpotMinValue;
+        address ticketSVGRenderer;
     }
 
     /// @notice Current state of the lootery
@@ -128,6 +132,10 @@ contract Lootery is
     uint256 public seedJackpotDelay;
     /// @notice Minimum value required when seeding jackpot
     uint256 public seedJackpotMinValue;
+    /// @notice Ticket SVG renderer
+    address public ticketSVGRenderer;
+    /// @notice Token URI base; uses default metadata if not set
+    string public baseURI;
 
     /// @dev Current token id
     uint256 private currentTokenId;
@@ -177,6 +185,13 @@ contract Lootery is
     event DrawSkipped(uint256 indexed gameId);
     event Received(address sender, uint256 amount);
     event JackpotSeeded(address indexed whomst, uint256 amount);
+    event JackpotRollover(
+        uint256 indexed gameId,
+        uint256 unclaimedPayouts,
+        uint256 currentJackpot,
+        uint256 nextUnclaimedPayouts,
+        uint256 nextJackpot
+    );
 
     error TransferFailure(address to, uint256 value, bytes reason);
     error InvalidNumPicks(uint256 numPicks);
@@ -186,6 +201,7 @@ contract Lootery is
     error InvalidPrizeToken(address prizeToken);
     error InvalidSeedJackpotConfig(uint256 delay, uint256 minValue);
     error IncorrectPaymentAmount(uint256 paid, uint256 expected);
+    error InvalidAddress();
     error UnsortedPicks(uint8[] picks);
     error InvalidBallValue(uint256 ballValue);
     error GameAlreadyDrawn();
@@ -203,13 +219,6 @@ contract Lootery is
     error GameInactive();
     error RateLimited(uint256 secondsToWait);
     error InsufficientJackpotSeed(uint256 value);
-    event JackpotRollover(
-        uint256 indexed gameId,
-        uint256 unclaimedPayouts,
-        uint256 currentJackpot,
-        uint256 nextUnclaimedPayouts,
-        uint256 nextJackpot
-    );
 
     constructor() {
         _disableInitializers();
@@ -255,6 +264,11 @@ contract Lootery is
                 seedJackpotMinValue
             );
         }
+
+        if (initConfig.ticketSVGRenderer == address(0)) {
+            revert InvalidAddress();
+        }
+        ticketSVGRenderer = initConfig.ticketSVGRenderer;
 
         gameData[0] = Game({
             ticketsSold: 0,
@@ -320,6 +334,22 @@ contract Lootery is
             id |= uint256(1) << picks[i];
         }
         return id;
+    }
+
+    function computePicks(
+        uint256 pickId
+    ) public view returns (uint8[] memory picks) {
+        picks = new uint8[](numPicks);
+        uint256 p;
+        for (uint256 i; i < 256; ++i) {
+            bool isSet = (pickId >> i) & 1 == 1;
+            if (isSet) {
+                picks[p++] = uint8(i);
+            }
+            if (p == numPicks) {
+                break;
+            }
+        }
     }
 
     /// @notice Compute the winning numbers/balls given a random seed.
@@ -704,11 +734,35 @@ contract Lootery is
         emit Received(msg.sender, msg.value);
     }
 
+    /// @notice Set token base URI
+    /// @param baseURI_ Base URI, including trailing slash
+    function setTokenBaseURI(string memory baseURI_) external onlyOwner {
+        baseURI = baseURI_;
+    }
+
     function tokenURI(
         uint256 tokenId
     ) public view override returns (string memory) {
         _requireOwned(tokenId);
-        return
-            "ipfs://bafkreice6o7ptnfe5fljfher65lmcvscc634iehybmxafwv7hkrkyktmem";
+        string memory baseURI_ = baseURI;
+        if (bytes(baseURI_).length > 0) {
+            return
+                string(
+                    abi.encodePacked(
+                        baseURI_,
+                        tokenId.toString(),
+                        "?pick=",
+                        purchasedTickets[tokenId].pickId.toString()
+                    )
+                );
+        } else {
+            return
+                TicketSVGRenderer(ticketSVGRenderer).renderTokenURI(
+                    name(),
+                    tokenId,
+                    maxBallValue,
+                    computePicks(purchasedTickets[tokenId].pickId)
+                );
+        }
     }
 }

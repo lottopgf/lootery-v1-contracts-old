@@ -230,6 +230,25 @@
     "anonymous": false,
     "inputs": [
       {
+        "indexed": false,
+        "internalType": "address",
+        "name": "oldTicketSVGRenderer",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "address",
+        "name": "newTicketSVGRenderer",
+        "type": "address"
+      }
+    ],
+    "name": "TicketSVGRendererUpdated",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
         "indexed": true,
         "internalType": "address",
         "name": "implementation",
@@ -281,6 +300,19 @@
   {
     "inputs": [],
     "name": "RANDOMISER_SLOT",
+    "outputs": [
+      {
+        "internalType": "bytes32",
+        "name": "",
+        "type": "bytes32"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "TICKET_SVG_RENDERER_SLOT",
     "outputs": [
       {
         "internalType": "bytes32",
@@ -414,6 +446,19 @@
     "type": "function"
   },
   {
+    "inputs": [],
+    "name": "getTicketSVGRenderer",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
     "inputs": [
       {
         "internalType": "bytes32",
@@ -465,6 +510,11 @@
       {
         "internalType": "address",
         "name": "randomiser",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "ticketSVGRenderer",
         "type": "address"
       }
     ],
@@ -531,6 +581,19 @@
       }
     ],
     "name": "setRandomiser",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "ticketSVGRenderer",
+        "type": "address"
+      }
+    ],
+    "name": "setTicketSVGRenderer",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"

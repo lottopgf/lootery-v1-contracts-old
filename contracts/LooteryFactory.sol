@@ -21,6 +21,9 @@ contract LooteryFactory is UUPSUpgradeable, AccessControlUpgradeable {
     // keccak256("troops.lootery_factory.nonce");
     bytes32 public constant NONCE_SLOT =
         0xb673313ff65da5deee919e9043f9d191abd6721ce5d457fcf870135fe1bceb99;
+    // keccak256("troops.lootery_factory.ticket_svg_renderer");
+    bytes32 public constant TICKET_SVG_RENDERER_SLOT =
+        0xd1c597752146589dde9c96027a1c6cda673d6fe5b448036a3b51eb9c108a913c;
 
     event LooteryLaunched(
         address indexed looteryProxy,
@@ -29,6 +32,10 @@ contract LooteryFactory is UUPSUpgradeable, AccessControlUpgradeable {
         string name
     );
     event RandomiserUpdated(address oldRandomiser, address newRandomiser);
+    event TicketSVGRendererUpdated(
+        address oldTicketSVGRenderer,
+        address newTicketSVGRenderer
+    );
 
     constructor() {
         _disableInitializers();
@@ -39,13 +46,15 @@ contract LooteryFactory is UUPSUpgradeable, AccessControlUpgradeable {
     /// @param randomiser The randomiser to be deployed with each Lootery
     function init(
         address looteryMasterCopy,
-        address randomiser
+        address randomiser,
+        address ticketSVGRenderer
     ) public initializer {
         __UUPSUpgradeable_init();
         __AccessControl_init();
 
         LOOTERY_MASTER_COPY_SLOT.getAddressSlot().value = looteryMasterCopy;
         RANDOMISER_SLOT.getAddressSlot().value = randomiser;
+        TICKET_SVG_RENDERER_SLOT.getAddressSlot().value = ticketSVGRenderer;
 
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
     }
@@ -65,6 +74,20 @@ contract LooteryFactory is UUPSUpgradeable, AccessControlUpgradeable {
 
     function getRandomiser() external view returns (address) {
         return RANDOMISER_SLOT.getAddressSlot().value;
+    }
+
+    function setTicketSVGRenderer(
+        address ticketSVGRenderer
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        address oldTicketSVGRenderer = TICKET_SVG_RENDERER_SLOT
+            .getAddressSlot()
+            .value;
+        TICKET_SVG_RENDERER_SLOT.getAddressSlot().value = ticketSVGRenderer;
+        emit TicketSVGRendererUpdated(oldTicketSVGRenderer, ticketSVGRenderer);
+    }
+
+    function getTicketSVGRenderer() external view returns (address) {
+        return TICKET_SVG_RENDERER_SLOT.getAddressSlot().value;
     }
 
     /// @notice Compute salt used in computing deployment addresses
@@ -134,7 +157,10 @@ contract LooteryFactory is UUPSUpgradeable, AccessControlUpgradeable {
                 randomiser: RANDOMISER_SLOT.getAddressSlot().value,
                 prizeToken: prizeToken,
                 seedJackpotDelay: seedJackpotDelay,
-                seedJackpotMinValue: seedJackpotMinValue
+                seedJackpotMinValue: seedJackpotMinValue,
+                ticketSVGRenderer: TICKET_SVG_RENDERER_SLOT
+                    .getAddressSlot()
+                    .value
             })
         );
         emit LooteryLaunched(looteryProxy, looteryMasterCopy, msg.sender, name);
