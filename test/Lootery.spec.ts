@@ -703,6 +703,28 @@ describe('Lootery', () => {
                     .withArgs(ZeroAddress, whomst, i + 1)
             }
         })
+
+        it('should prevent skipping draws if gamePeriod has not elapsed', async () => {
+            const gamePeriod = 1n * 60n * 60n
+            async function deploy() {
+                return deployLotto({
+                    deployer,
+                    gamePeriod,
+                    prizeToken: testERC20,
+                })
+            }
+            const { lotto } = await loadFixture(deploy)
+
+            const initialGameId = await lotto.currentGame().then((game) => game.id)
+            await expect(lotto.draw()).to.be.revertedWithCustomError(lotto, 'WaitLonger')
+            for (let i = 0; i < 10; i++) {
+                const gameId = await lotto.currentGame().then((game) => game.id)
+                expect(gameId).to.eq(initialGameId + BigInt(i))
+                await expect(lotto.draw()).to.be.revertedWithCustomError(lotto, 'WaitLonger')
+                await time.increase(gamePeriod)
+                await expect(lotto.draw()).to.emit(lotto, 'DrawSkipped').withArgs(gameId)
+            }
+        })
     })
 })
 
