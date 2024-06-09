@@ -309,6 +309,17 @@
   {
     "inputs": [
       {
+        "internalType": "address",
+        "name": "renderer",
+        "type": "address"
+      }
+    ],
+    "name": "InvalidTicketSVGRenderer",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
         "internalType": "uint256",
         "name": "pickId",
         "type": "uint256"
@@ -903,6 +914,25 @@
     "inputs": [
       {
         "internalType": "uint256",
+        "name": "pickId",
+        "type": "uint256"
+      }
+    ],
+    "name": "computePicks",
+    "outputs": [
+      {
+        "internalType": "uint8[]",
+        "name": "picks",
+        "type": "uint8[]"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
         "name": "randomSeed",
         "type": "uint256"
       }
@@ -1067,6 +1097,11 @@
             "internalType": "uint256",
             "name": "seedJackpotMinValue",
             "type": "uint256"
+          },
+          {
+            "internalType": "address",
+            "name": "ticketSVGRenderer",
+            "type": "address"
           }
         ],
         "internalType": "struct Lootery.InitConfig",
@@ -1494,6 +1529,19 @@
   {
     "inputs": [
       {
+        "internalType": "address",
+        "name": "renderer",
+        "type": "address"
+      }
+    ],
+    "name": "setTicketSVGRenderer",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
         "internalType": "bytes4",
         "name": "interfaceId",
         "type": "bytes4"
@@ -1531,6 +1579,19 @@
         "internalType": "uint256",
         "name": "",
         "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "ticketSVGRenderer",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
       }
     ],
     "stateMutability": "view",

@@ -16,6 +16,8 @@ import {
     type TestERC20,
     WETH9__factory,
     LooteryETHAdapter__factory,
+    TicketSVGRenderer__factory,
+    TicketSVGRenderer,
 } from '../typechain-types'
 import { SignerWithAddress } from '@nomicfoundation/hardhat-ethers/signers'
 import { BigNumberish, LogDescription, Wallet, ZeroAddress, hexlify, parseEther } from 'ethers'
@@ -31,17 +33,20 @@ describe('Lootery', () => {
     let deployer: SignerWithAddress
     let bob: SignerWithAddress
     let alice: SignerWithAddress
+    let ticketSVGRenderer: TicketSVGRenderer
     beforeEach(async () => {
         ;[deployer, bob, alice] = await ethers.getSigners()
         mockRandomiser = await new MockRandomiser__factory(deployer).deploy()
         testERC20 = await new TestERC20__factory(deployer).deploy(deployer)
         const looteryImpl = await new Lootery__factory(deployer).deploy()
+        ticketSVGRenderer = await new TicketSVGRenderer__factory(deployer).deploy()
         factory = await deployProxy({
             deployer,
             implementation: LooteryFactory__factory,
             initData: LooteryFactory__factory.createInterface().encodeFunctionData('init', [
                 await looteryImpl.getAddress(),
                 await mockRandomiser.getAddress(),
+                await ticketSVGRenderer.getAddress(),
             ]),
         })
     })
@@ -431,6 +436,28 @@ describe('Lootery', () => {
         await lotto.seedJackpot(parseEther('11'))
     })
 
+    it('should return correct metadata', async () => {
+        async function deploy() {
+            return deployLotto({
+                deployer,
+                gamePeriod: 86400n,
+                prizeToken: testERC20,
+                seedJackpotDelay: 3600n /** 1h */,
+                shouldSkipSeedJackpot: true,
+                seedJackpotMinValue: parseEther('10'),
+            })
+        }
+        const { lotto } = await loadFixture(deploy)
+        await lotto.ownerPick([
+            {
+                whomst: bob.address,
+                picks: [1, 2, 3, 4, 5],
+            },
+        ])
+
+        expect(await lotto.tokenURI(1)).to.include('data:application/json;base64')
+    })
+
     describe('Apocalypse', () => {
         it('distributes to winner only when there is a winner', async () => {
             const gamePeriod = 1n * 60n * 60n
@@ -701,6 +728,7 @@ async function deployLotto({
     seedJackpotMinValue?: bigint
 }) {
     const mockRandomiser = await new MockRandomiser__factory(deployer).deploy()
+    const ticketSVGRenderer = await new TicketSVGRenderer__factory(deployer).deploy()
     const lotto = await deployProxy({
         deployer,
         implementation: Lootery__factory,
@@ -724,6 +752,7 @@ async function deployLotto({
                     typeof seedJackpotMinValue === 'undefined'
                         ? parseEther('1')
                         : seedJackpotMinValue,
+                ticketSVGRenderer: await ticketSVGRenderer.getAddress(),
             },
         ]),
     })
