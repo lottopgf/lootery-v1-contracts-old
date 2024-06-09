@@ -8,21 +8,22 @@ import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/acce
 import {Lootery} from "./Lootery.sol";
 
 /// @title LooteryFactory
+/// @custom:version 1.1.0
 /// @notice Launch your own lottos to fund your Troop!
 contract LooteryFactory is UUPSUpgradeable, AccessControlUpgradeable {
     using StorageSlot for bytes32;
 
     // keccak256("troops.lootery_factory.lootery_master_copy");
-    bytes32 public constant LOOTERY_MASTER_COPY_SLOT =
+    bytes32 private constant LOOTERY_MASTER_COPY_SLOT =
         0x15244694a038682b3dfdfc9a7b4d57f194bac87a538c298bbb15836f93f3d08e;
     // keccak256("troops.lootery_factory.randomiser");
-    bytes32 public constant RANDOMISER_SLOT =
+    bytes32 private constant RANDOMISER_SLOT =
         0x7fd620ff951c5553351af243f95586d6c40fbde77386fa401565df721194304b;
     // keccak256("troops.lootery_factory.nonce");
-    bytes32 public constant NONCE_SLOT =
+    bytes32 private constant NONCE_SLOT =
         0xb673313ff65da5deee919e9043f9d191abd6721ce5d457fcf870135fe1bceb99;
     // keccak256("troops.lootery_factory.ticket_svg_renderer");
-    bytes32 public constant TICKET_SVG_RENDERER_SLOT =
+    bytes32 private constant TICKET_SVG_RENDERER_SLOT =
         0xd1c597752146589dde9c96027a1c6cda673d6fe5b448036a3b51eb9c108a913c;
 
     event LooteryLaunched(
@@ -30,6 +31,10 @@ contract LooteryFactory is UUPSUpgradeable, AccessControlUpgradeable {
         address indexed looteryImplementation,
         address indexed deployer,
         string name
+    );
+    event LooteryMasterCopyUpdated(
+        address oldLooteryMasterCopy,
+        address newLooteryMasterCopy
     );
     event RandomiserUpdated(address oldRandomiser, address newRandomiser);
     event TicketSVGRendererUpdated(
@@ -63,6 +68,20 @@ contract LooteryFactory is UUPSUpgradeable, AccessControlUpgradeable {
     function _authorizeUpgrade(
         address newImplementation
     ) internal virtual override onlyRole(DEFAULT_ADMIN_ROLE) {}
+
+    function setLooteryMasterCopy(
+        address looteryMasterCopy
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        address oldLooteryMasterCopy = LOOTERY_MASTER_COPY_SLOT
+            .getAddressSlot()
+            .value;
+        LOOTERY_MASTER_COPY_SLOT.getAddressSlot().value = looteryMasterCopy;
+        emit LooteryMasterCopyUpdated(oldLooteryMasterCopy, looteryMasterCopy);
+    }
+
+    function getLooteryMasterCopy() external view returns (address) {
+        return LOOTERY_MASTER_COPY_SLOT.getAddressSlot().value;
+    }
 
     function setRandomiser(
         address randomiser
