@@ -15,7 +15,7 @@ contract TicketSVGRenderer {
 
     /// @notice Generate SVG
     /// @param picks Picks must be sorted ascendingly
-    function generateSVG(
+    function renderSVG(
         string memory name,
         uint8 maxPick,
         uint8[] memory picks
@@ -113,7 +113,7 @@ contract TicketSVGRenderer {
                                 '", "description":"POWERBALD LOL", "image": "',
                                 "data:image/svg+xml;base64,",
                                 Base64.encode(
-                                    bytes(generateSVG(name, maxPick, picks))
+                                    bytes(renderSVG(name, maxPick, picks))
                                 ),
                                 '"}'
                             )
