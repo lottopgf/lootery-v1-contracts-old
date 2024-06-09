@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8;
 
+import {ITicketSVGRenderer} from "../interfaces/ITicketSVGRenderer.sol";
+import {IERC165, ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 import {Base64} from "@openzeppelin/contracts/utils/Base64.sol";
 
-contract TicketSVGRenderer {
+contract TicketSVGRenderer is ITicketSVGRenderer, ERC165 {
     using Strings for uint256;
 
     uint256 private constant NUMBERS_PER_ROW = 5;
@@ -12,18 +14,29 @@ contract TicketSVGRenderer {
 
     error EmptyPicks();
     error UnsortedPicks(uint8[] picks);
+    error OutOfRange(uint8 pick, uint8 maxPick);
 
-    /// @notice Generate SVG
-    /// @param picks Picks must be sorted ascendingly
+    /// @notice See {IERC165-supportsInterface}.
+    function supportsInterface(
+        bytes4 interfaceId
+    ) public view override(IERC165, ERC165) returns (bool) {
+        return
+            interfaceId == type(ITicketSVGRenderer).interfaceId ||
+            super.supportsInterface(interfaceId);
+    }
+
+    /// @notice See {ITicketSVGRenderer-renderSVG}.
     function renderSVG(
         string memory name,
         uint8 maxPick,
         uint8[] memory picks
     ) public pure returns (string memory) {
         if (picks.length == 0) revert EmptyPicks();
+        if (picks[0] > maxPick) revert OutOfRange(picks[0], maxPick);
         if (picks.length > 1) {
             for (uint256 i = 1; i < picks.length; ++i) {
                 if (picks[i - 1] >= picks[i]) revert UnsortedPicks(picks);
+                if (picks[i] > maxPick) revert OutOfRange(picks[i], maxPick);
             }
         }
 
@@ -93,6 +106,7 @@ contract TicketSVGRenderer {
         return string(abi.encodePacked(svgHeader, svgBody, svgFooter));
     }
 
+    /// @notice See {ITicketSVGRenderer-renderTokenURI}.
     function renderTokenURI(
         string memory name,
         uint256 tokenId,

@@ -11,7 +11,7 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 import {IRandomiserCallback} from "./interfaces/IRandomiserCallback.sol";
 import {IAnyrand} from "./interfaces/IAnyrand.sol";
-import {TicketSVGRenderer} from "./lib/TicketSVGRenderer.sol";
+import {ITicketSVGRenderer} from "./interfaces/ITicketSVGRenderer.sol";
 
 /// @title Lootery
 /// @custom:version 1.1.0
@@ -134,8 +134,6 @@ contract Lootery is
     uint256 public seedJackpotMinValue;
     /// @notice Ticket SVG renderer
     address public ticketSVGRenderer;
-    /// @notice Token URI base; uses default metadata if not set
-    string public baseURI;
 
     /// @dev Current token id
     uint256 private currentTokenId;
@@ -201,7 +199,7 @@ contract Lootery is
     error InvalidPrizeToken(address prizeToken);
     error InvalidSeedJackpotConfig(uint256 delay, uint256 minValue);
     error IncorrectPaymentAmount(uint256 paid, uint256 expected);
-    error InvalidAddress();
+    error InvalidTicketSVGRenderer(address renderer);
     error UnsortedPicks(uint8[] picks);
     error InvalidBallValue(uint256 ballValue);
     error GameAlreadyDrawn();
@@ -265,10 +263,7 @@ contract Lootery is
             );
         }
 
-        if (initConfig.ticketSVGRenderer == address(0)) {
-            revert InvalidAddress();
-        }
-        ticketSVGRenderer = initConfig.ticketSVGRenderer;
+        _setTicketSVGRenderer(initConfig.ticketSVGRenderer);
 
         gameData[0] = Game({
             ticketsSold: 0,
@@ -734,35 +729,37 @@ contract Lootery is
         emit Received(msg.sender, msg.value);
     }
 
-    /// @notice Set token base URI
-    /// @param baseURI_ Base URI, including trailing slash
-    function setTokenBaseURI(string memory baseURI_) external onlyOwner {
-        baseURI = baseURI_;
+    /// @notice Set the SVG renderer for tickets (privileged)
+    /// @param renderer Address of renderer contract
+    function _setTicketSVGRenderer(address renderer) internal {
+        if (
+            renderer == address(0) ||
+            !ITicketSVGRenderer(renderer).supportsInterface(
+                type(ITicketSVGRenderer).interfaceId
+            )
+        ) {
+            revert InvalidTicketSVGRenderer(renderer);
+        }
+        ticketSVGRenderer = renderer;
     }
 
+    /// @notice Set the SVG renderer for tickets
+    /// @param renderer Address of renderer contract
+    function setTicketSVGRenderer(address renderer) external onlyOwner {
+        _setTicketSVGRenderer(renderer);
+    }
+
+    /// @notice See {ERC721-tokenURI}
     function tokenURI(
         uint256 tokenId
     ) public view override returns (string memory) {
         _requireOwned(tokenId);
-        string memory baseURI_ = baseURI;
-        if (bytes(baseURI_).length > 0) {
-            return
-                string(
-                    abi.encodePacked(
-                        baseURI_,
-                        tokenId.toString(),
-                        "?pick=",
-                        purchasedTickets[tokenId].pickId.toString()
-                    )
-                );
-        } else {
-            return
-                TicketSVGRenderer(ticketSVGRenderer).renderTokenURI(
-                    name(),
-                    tokenId,
-                    maxBallValue,
-                    computePicks(purchasedTickets[tokenId].pickId)
-                );
-        }
+        return
+            ITicketSVGRenderer(ticketSVGRenderer).renderTokenURI(
+                name(),
+                tokenId,
+                maxBallValue,
+                computePicks(purchasedTickets[tokenId].pickId)
+            );
     }
 }

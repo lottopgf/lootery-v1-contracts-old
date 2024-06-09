@@ -2,6 +2,7 @@ import { ethers } from 'hardhat'
 import { SignerWithAddress } from '@nomicfoundation/hardhat-ethers/signers'
 import { TicketSVGRenderer, TicketSVGRenderer__factory } from '../typechain-types'
 import { encrypt } from '@kevincharm/gfc-fpe'
+import { expect } from 'chai'
 
 describe('TicketSVG', () => {
     let deployer: SignerWithAddress
@@ -21,6 +22,22 @@ describe('TicketSVG', () => {
         const svg = await ticketSVGRenderer.renderSVG('The Lootery', maxValue, picks)
         console.log('picks:', picks)
         console.log(`data:image/svg+xml;base64,${btoa(svg)}`)
+    })
+
+    it('should render a ticket for numPick=1', async () => {
+        const maxValue = 5
+        const picks = [5]
+        const svg = await ticketSVGRenderer.renderSVG('The Lootery', maxValue, picks)
+        console.log('picks:', picks)
+        console.log(`data:image/svg+xml;base64,${btoa(svg)}`)
+    })
+
+    it('should revert when trying to render an out of range pick', async () => {
+        const maxValue = 1
+        const picks = [5]
+        await expect(ticketSVGRenderer.renderSVG('The Lootery', maxValue, picks))
+            .to.be.revertedWithCustomError(ticketSVGRenderer, 'OutOfRange')
+            .withArgs(5, 1)
     })
 })
 
