@@ -20,7 +20,15 @@ import {
     TicketSVGRenderer,
 } from '../typechain-types'
 import { SignerWithAddress } from '@nomicfoundation/hardhat-ethers/signers'
-import { BigNumberish, LogDescription, Wallet, ZeroAddress, hexlify, parseEther } from 'ethers'
+import {
+    BigNumberish,
+    LogDescription,
+    Wallet,
+    ZeroAddress,
+    formatEther,
+    hexlify,
+    parseEther,
+} from 'ethers'
 import { expect } from 'chai'
 import { deployProxy } from './helpers/deployProxy'
 import { encrypt } from '@kevincharm/gfc-fpe'
@@ -436,6 +444,38 @@ describe('Lootery', () => {
         await lotto.seedJackpot(parseEther('11'))
     })
 
+    it('should refund gas to draw() keeper', async () => {
+        async function deploy() {
+            return deployLotto({
+                deployer,
+                gamePeriod: 86400n,
+                prizeToken: testERC20,
+                seedJackpotDelay: 3600n /** 1h */,
+                shouldSkipSeedJackpot: true,
+                seedJackpotMinValue: parseEther('10'),
+            })
+        }
+        const { lotto } = await loadFixture(deploy)
+        await deployer.sendTransaction({
+            to: await lotto.getAddress(),
+            value: parseEther('100.0'),
+        })
+        await lotto.ownerPick([
+            {
+                whomst: bob.address,
+                picks: [1, 2, 3, 4, 5],
+            },
+        ])
+
+        const balanceBefore = await ethers.provider.getBalance(deployer.address)
+        await time.increase(await lotto.gamePeriod())
+        const drawTx = await lotto.draw()
+        await drawTx.wait()
+        const balanceAfter = await ethers.provider.getBalance(deployer.address)
+        expect(balanceAfter).to.be.gt(balanceBefore)
+        await expect(drawTx).to.emit(lotto, 'GasRefundAttempted')
+    })
+
     it('should return correct metadata', async () => {
         async function deploy() {
             return deployLotto({
@@ -714,6 +754,12 @@ describe('Lootery', () => {
                 })
             }
             const { lotto } = await loadFixture(deploy)
+
+            // Fund the contract so it can draw
+            await deployer.sendTransaction({
+                to: await lotto.getAddress(),
+                value: parseEther('100.0'),
+            })
 
             const initialGameId = await lotto.currentGame().then((game) => game.id)
             await expect(lotto.draw()).to.be.revertedWithCustomError(lotto, 'WaitLonger')
