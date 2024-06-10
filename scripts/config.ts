@@ -16,6 +16,11 @@ export const config: Config = {
         anyrand: '0xe3a8eca966457bfd7e0049543e07e8b691b3930e',
         weth: '0xEb54dACB4C2ccb64F8074eceEa33b5eBb38E5387',
     },
+    '534352': {
+        /** scroll mainnet */
+        anyrand: '0x46CFe55bf2E5A02B738f5BBdc1bDEE9Dd22b5d39',
+        weth: '0x5300000000000000000000000000000000000004',
+    },
     '666666666': {
         anyrand: '0x9309bd93a8b662d315Ce0D43bb95984694F120Cb',
         weth: '0xEb54dACB4C2ccb64F8074eceEa33b5eBb38E5387', // WDEGEN

@@ -55,6 +55,9 @@ const config: HardhatUserConfig = {
         only: ['Lootery'],
         except: ['test/*'],
     },
+    sourcify: {
+        enabled: true,
+    },
 }
 
 export default config

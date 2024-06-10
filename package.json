@@ -5,6 +5,7 @@
   "scripts": {
     "deploy:gnosis": "yarn hardhat --config hardhat.config.gnosis.ts --network gnosis run scripts/deploy.ts",
     "deploy:basetestnet": "yarn hardhat --config hardhat.config.base.ts --network baseSepolia run scripts/deploy.ts",
+    "deploy:scroll": "yarn hardhat --config hardhat.config.scroll.ts --network scroll run scripts/deploy.ts",
     "deploy:degen": "yarn hardhat --config hardhat.config.degen.ts --network degen run scripts/deploy.ts",
     "build": "yarn hardhat compile",
     "format:check": "yarn prettier --check .",
@@ -22,7 +23,7 @@
     "@nomicfoundation/hardhat-ignition-ethers": "^0.15.4",
     "@nomicfoundation/hardhat-network-helpers": "^1.0.0",
     "@nomicfoundation/hardhat-toolbox": "^5.0.0",
-    "@nomicfoundation/hardhat-verify": "^2.0.7",
+    "@nomicfoundation/hardhat-verify": "^2.0.8",
     "@nomicfoundation/ignition-core": "^0.15.4",
     "@typechain/ethers-v6": "^0.5.0",
     "@typechain/hardhat": "^9.0.0",
