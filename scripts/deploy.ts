@@ -4,15 +4,18 @@ import { config } from './config'
 import LooteryImplModule from '../ignition/modules/LooteryImpl'
 import LooteryFactoryModule from '../ignition/modules/LooteryFactory'
 import LooteryETHAdapterModule from '../ignition/modules/LooteryETHAdapter'
+import TicketSVGRendererModule from '../ignition/modules/TicketSVGRenderer'
 
 async function main() {
     const chainId = await ethers.provider.getNetwork().then((network) => network.chainId)
     const { anyrand, weth } = config[chainId.toString() as keyof typeof config]
 
+    const { ticketSVGRenderer } = await ignition.deploy(TicketSVGRendererModule)
     const { looteryImpl } = await ignition.deploy(LooteryImplModule)
     const factoryInitData = LooteryFactory__factory.createInterface().encodeFunctionData('init', [
         await looteryImpl.getAddress(),
         anyrand,
+        await ticketSVGRenderer.getAddress(),
     ])
     const { looteryFactoryProxy } = await ignition.deploy(LooteryFactoryModule, {
         parameters: {
