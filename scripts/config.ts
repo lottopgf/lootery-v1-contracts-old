@@ -13,7 +13,7 @@ export const config: Config = {
     },
     '8453': {
         /** base mainnet; drand on BN254 v2 (SVDW) */
-        anyrand: '0xe3a8eca966457bfd7e0049543e07e8b691b3930e',
+        anyrand: '0x26881E8C452928A889654e4a8BaFBf205dD87812',
         weth: '0xEb54dACB4C2ccb64F8074eceEa33b5eBb38E5387',
     },
     '534352': {
